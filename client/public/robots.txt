@@ -1,0 +1,50 @@
+# CreatorConnect - Robots.txt
+# Otimizado para SEO e GEO (Generative Engine Optimization)
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /company/
+Disallow: /creator/
+Disallow: /auth
+
+# Sitemap (a ser implementado)
+# Sitemap: https://ugc.turbopartners.com.br/sitemap.xml
+
+# AI Search Bots - Permitir para GEO
+User-agent: GPTBot
+Allow: /
+Allow: /blog/
+Allow: /cases/
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /blog/
+Allow: /cases/
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /blog/
+Allow: /cases/
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /blog/
+Allow: /cases/
+
+User-agent: Anthropic-ai
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# Crawl delay para evitar sobrecarga
+User-agent: *
+Crawl-delay: 1

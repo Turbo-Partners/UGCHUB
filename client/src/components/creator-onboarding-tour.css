@@ -1,0 +1,150 @@
+/* Custom styling for driver.js tour to match CreatorConnect identity */
+
+/* Main popover container */
+.driver-popover {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+  max-width: 400px !important;
+}
+
+/* Title */
+.driver-popover-title {
+  color: hsl(var(--foreground)) !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.75rem !important;
+  font-family: 'Outfit', system-ui, sans-serif !important;
+}
+
+/* Description */
+.driver-popover-description {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+  margin-bottom: 1.5rem !important;
+}
+
+/* Footer / Button container */
+.driver-popover-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+  margin-top: 1.5rem !important;
+  flex-wrap: wrap !important;
+}
+
+/* All buttons base style */
+.driver-popover button {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+  padding: 0.625rem 1.25rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.2s ease !important;
+  border: 1px solid transparent !important;
+  cursor: pointer !important;
+}
+
+/* Next/Done button (primary action) */
+.driver-popover-next-btn {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px hsla(var(--primary), 0.3) !important;
+}
+
+/* Previous button (secondary action) */
+.driver-popover-prev-btn {
+  background: transparent !important;
+  color: hsl(var(--muted-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.driver-popover-prev-btn:hover {
+  background: hsl(var(--accent)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--ring)) !important;
+}
+
+/* Close/Skip button */
+.driver-popover-close-btn {
+  background: transparent !important;
+  color: hsl(var(--muted-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  padding: 0.625rem 1.25rem !important;
+  font-size: 0.875rem !important;
+  border-radius: 0.5rem !important;
+  order: -1 !important;
+  margin-right: auto !important;
+}
+
+.driver-popover-close-btn:hover {
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--ring)) !important;
+}
+
+/* Progress text */
+.driver-popover-progress-text {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+}
+
+/* Arrow */
+.driver-popover-arrow {
+  border-color: hsl(var(--card)) !important;
+}
+
+.driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: hsl(var(--card)) !important;
+}
+
+.driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: hsl(var(--card)) !important;
+}
+
+.driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: hsl(var(--card)) !important;
+}
+
+.driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: hsl(var(--card)) !important;
+}
+
+/* Overlay */
+.driver-overlay {
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Active element highlight */
+.driver-active-element {
+  border-radius: 0.75rem !important;
+}
+
+/* Dark mode support */
+.dark .driver-popover {
+  background: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.dark .driver-popover-title {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .driver-popover-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark .driver-overlay {
+  background: rgba(0, 0, 0, 0.75) !important;
+}

@@ -1,0 +1,97 @@
+export const NICHE_OPTIONS = [
+  { value: "tech", label: "Tecnologia & Games" },
+  { value: "lifestyle", label: "Estilo de Vida & Vlogs" },
+  { value: "beauty", label: "Beleza & Moda" },
+  { value: "education", label: "Educação" },
+  { value: "finance", label: "Finanças & Investimentos" },
+  { value: "health", label: "Saúde & Fitness" },
+  { value: "travel", label: "Viagens" },
+  { value: "food", label: "Gastronomia" },
+  { value: "entertainment", label: "Entretenimento & Humor" },
+  { value: "sports", label: "Esportes" },
+  { value: "pets", label: "Pets & Animais" },
+  { value: "parenting", label: "Maternidade & Família" },
+  { value: "business", label: "Negócios & Empreendedorismo" },
+  { value: "other", label: "Outros" }
+] as const;
+
+export const PLATFORM_OPTIONS = [
+  { value: "instagram", label: "Instagram" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "youtube", label: "YouTube" },
+  { value: "twitter", label: "X (Twitter)" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "pinterest", label: "Pinterest" },
+  { value: "kwai", label: "Kwai" },
+] as const;
+
+export const CONTENT_FORMAT_OPTIONS = [
+  { value: "photo", label: "Foto" },
+  { value: "carousel", label: "Carrossel" },
+  { value: "reels", label: "Reels" },
+  { value: "stories", label: "Stories" },
+  { value: "video", label: "Vídeo" },
+  { value: "short", label: "Short" },
+  { value: "live", label: "Live" },
+  { value: "ugc", label: "UGC" },
+] as const;
+
+export const DELIVERABLE_TYPE_OPTIONS = [
+  { value: "instagram_post", label: "Post Instagram" },
+  { value: "instagram_reels", label: "Reels Instagram" },
+  { value: "instagram_stories", label: "Stories Instagram" },
+  { value: "instagram_carousel", label: "Carrossel Instagram" },
+  { value: "tiktok_video", label: "Vídeo TikTok" },
+  { value: "youtube_video", label: "Vídeo YouTube" },
+  { value: "youtube_shorts", label: "Shorts YouTube" },
+  { value: "ugc_video", label: "Vídeo UGC" },
+  { value: "ugc_photo", label: "Foto UGC" },
+  { value: "review", label: "Review/Depoimento" },
+  { value: "unboxing", label: "Unboxing" },
+  { value: "tutorial", label: "Tutorial" },
+  { value: "other", label: "Outro" },
+] as const;
+
+export type NicheValue = typeof NICHE_OPTIONS[number]["value"];
+export type PlatformValue = typeof PLATFORM_OPTIONS[number]["value"];
+export type ContentFormatValue = typeof CONTENT_FORMAT_OPTIONS[number]["value"];
+export type DeliverableTypeValue = typeof DELIVERABLE_TYPE_OPTIONS[number]["value"];
+
+export const AGE_RANGE_OPTIONS = [
+  { value: "13-17", label: "13-17 anos" },
+  { value: "18-24", label: "18-24 anos" },
+  { value: "25-34", label: "25-34 anos" },
+  { value: "35-44", label: "35-44 anos" },
+  { value: "45-54", label: "45-54 anos" },
+  { value: "55+", label: "55+ anos" },
+];
+
+export const STATE_OPTIONS = [
+  { value: "AC", label: "Acre" },
+  { value: "AL", label: "Alagoas" },
+  { value: "AP", label: "Amapá" },
+  { value: "AM", label: "Amazonas" },
+  { value: "BA", label: "Bahia" },
+  { value: "CE", label: "Ceará" },
+  { value: "DF", label: "Distrito Federal" },
+  { value: "ES", label: "Espírito Santo" },
+  { value: "GO", label: "Goiás" },
+  { value: "MA", label: "Maranhão" },
+  { value: "MT", label: "Mato Grosso" },
+  { value: "MS", label: "Mato Grosso do Sul" },
+  { value: "MG", label: "Minas Gerais" },
+  { value: "PA", label: "Pará" },
+  { value: "PB", label: "Paraíba" },
+  { value: "PR", label: "Paraná" },
+  { value: "PE", label: "Pernambuco" },
+  { value: "PI", label: "Piauí" },
+  { value: "RJ", label: "Rio de Janeiro" },
+  { value: "RN", label: "Rio Grande do Norte" },
+  { value: "RS", label: "Rio Grande do Sul" },
+  { value: "RO", label: "Rondônia" },
+  { value: "RR", label: "Roraima" },
+  { value: "SC", label: "Santa Catarina" },
+  { value: "SP", label: "São Paulo" },
+  { value: "SE", label: "Sergipe" },
+  { value: "TO", label: "Tocantins" },
+];

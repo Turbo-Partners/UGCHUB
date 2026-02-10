@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "creator_workflow_status" text DEFAULT 'aceito';
