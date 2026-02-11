@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Building2, MapPin, Phone, Save, Loader2, Upload, Globe, Image, Eye, Compass, Instagram, RefreshCw } from "lucide-react";
+import { Building2, MapPin, Phone, Save, Loader2, Upload, Globe, Image, Eye, Compass, Instagram, RefreshCw, Sparkles, Palette, FileText, Building, ShoppingBag, ExternalLink, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -36,6 +39,32 @@ interface CompanyData {
   tagline: string | null;
   isDiscoverable: boolean;
   isFeatured: boolean;
+  // Enrichment fields
+  brandColors: string[] | null;
+  brandLogo: string | null;
+  companyBriefing: string | null;
+  aiContextSummary: string | null;
+  websiteProducts: string[] | null;
+  enrichmentScore: number | null;
+  // CNPJ enrichment
+  cnpjRazaoSocial: string | null;
+  cnpjNomeFantasia: string | null;
+  cnpjSituacao: string | null;
+  cnpjAtividadePrincipal: string | null;
+  cnpjDataAbertura: string | null;
+  cnpjCapitalSocial: string | null;
+  cnpjNaturezaJuridica: string | null;
+  cnpjQsa: { nome: string; qual: string }[] | null;
+  // Website enrichment
+  websiteTitle: string | null;
+  websiteDescription: string | null;
+  websiteKeywords: string[] | null;
+  websiteSocialLinks: Record<string, string> | null;
+  websiteFaq: { question: string; answer: string }[] | null;
+  // E-commerce enrichment
+  ecommercePlatform: string | null;
+  ecommerceProductCount: number | null;
+  ecommerceCategories: string[] | null;
 }
 
 interface ActiveCompanyResponse {
@@ -432,7 +461,10 @@ export function CompanyProfileSettings() {
           if (details.length > 0) description = details.join(" • ");
           
           toast.success("Dados enriquecidos!", { description });
-          
+
+          // Refresh company data to show enriched CNPJ fields in Intelligence section
+          queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
+
           // Trigger automatic description generation if we have enough data
           if (!formData.description && (data.data.razaoSocial || updates.category)) {
             setTimeout(() => {
@@ -537,12 +569,15 @@ export function CompanyProfileSettings() {
           }
           
           toast.success("Site analisado com IA!", {
-            description: fieldsUpdated > 0 
+            description: fieldsUpdated > 0
               ? `${fieldsUpdated} campo(s) preenchido(s) automaticamente.`
               : "Análise completa, mas os campos já estavam preenchidos.",
           });
-          
-          // Trigger automatic description generation if description is empty
+
+          // Refresh company data to show enriched fields in Intelligence section
+          queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
+
+          // Trigger automatic description generation with briefing if description is empty
           if (!formData.description && !updates.description && (data.data.description || data.data.products)) {
             setTimeout(() => {
               generateDescriptionWithContext({
@@ -690,6 +725,7 @@ export function CompanyProfileSettings() {
           state: formData.state,
         },
         enrichmentContext,
+        includeBriefing: true,
       };
       
       const res = await fetch("/api/enrichment/generate-description-v2", {
@@ -714,6 +750,10 @@ export function CompanyProfileSettings() {
             toast.success("Descrição e tagline geradas com IA!", {
               description: "Revise os textos e faça ajustes se necessário."
             });
+          }
+          // Refresh to show briefing in Intelligence section
+          if (data.data.briefing) {
+            queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
           }
         }
       } else {
@@ -1098,6 +1138,11 @@ export function CompanyProfileSettings() {
             </CardContent>
           </Card>
 
+          {/* Inteligência da Marca - only shown when there's enriched data */}
+          {(company.brandColors?.length || company.cnpjRazaoSocial || company.websiteTitle || company.companyBriefing || company.aiContextSummary) && (
+            <BrandIntelligenceSection company={company} />
+          )}
+
           <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -1126,5 +1171,246 @@ export function CompanyProfileSettings() {
         </div>
       </form>
     </div>
+  );
+}
+
+function CollapsibleSection({ title, icon: Icon, children, defaultOpen = false }: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sm font-medium hover:text-primary transition-colors">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          {title}
+        </div>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2 pb-1">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function BrandIntelligenceSection({ company }: { company: CompanyData }) {
+  const briefing = company.companyBriefing || company.aiContextSummary;
+
+  return (
+    <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Sparkles className="h-5 w-5 text-amber-500" />
+            Inteligência da Marca
+          </CardTitle>
+          {company.enrichmentScore != null && (
+            <Badge variant="secondary" className="text-xs">
+              Score: {company.enrichmentScore}/100
+            </Badge>
+          )}
+        </div>
+        <CardDescription>Dados coletados automaticamente via IA</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Brand Colors */}
+        {company.brandColors && company.brandColors.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Palette className="h-4 w-4 text-muted-foreground" />
+              Cores da Marca
+            </div>
+            <div className="flex gap-3">
+              {company.brandColors.map((color, i) => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  <div
+                    className="h-10 w-10 rounded-full border-2 border-background shadow-sm"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-[10px] text-muted-foreground font-mono">{color}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Brand Logo */}
+        {company.brandLogo && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Image className="h-4 w-4 text-muted-foreground" />
+              Logo Extraído
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 inline-block">
+              <img src={company.brandLogo} alt="Logo da marca" className="h-12 max-w-[200px] object-contain" />
+            </div>
+          </div>
+        )}
+
+        {/* Company Briefing */}
+        {briefing && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              Briefing da Empresa
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {briefing}
+            </div>
+          </div>
+        )}
+
+        {/* CNPJ Data */}
+        {company.cnpjRazaoSocial && (
+          <CollapsibleSection title="Dados do CNPJ" icon={Building} defaultOpen={false}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Razão Social</span>
+                <p className="font-medium">{company.cnpjRazaoSocial}</p>
+              </div>
+              {company.cnpjNomeFantasia && (
+                <div>
+                  <span className="text-muted-foreground">Nome Fantasia</span>
+                  <p className="font-medium">{company.cnpjNomeFantasia}</p>
+                </div>
+              )}
+              {company.cnpjSituacao && (
+                <div>
+                  <span className="text-muted-foreground">Situação</span>
+                  <div>
+                    <Badge variant={company.cnpjSituacao === "ATIVA" ? "default" : "destructive"} className="text-xs">
+                      {company.cnpjSituacao}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+              {company.cnpjAtividadePrincipal && (
+                <div>
+                  <span className="text-muted-foreground">Atividade Principal</span>
+                  <p className="font-medium">{company.cnpjAtividadePrincipal}</p>
+                </div>
+              )}
+              {company.cnpjDataAbertura && (
+                <div>
+                  <span className="text-muted-foreground">Data Abertura</span>
+                  <p className="font-medium">{company.cnpjDataAbertura}</p>
+                </div>
+              )}
+              {company.cnpjCapitalSocial && (
+                <div>
+                  <span className="text-muted-foreground">Capital Social</span>
+                  <p className="font-medium">R$ {Number(company.cnpjCapitalSocial).toLocaleString("pt-BR")}</p>
+                </div>
+              )}
+              {company.cnpjNaturezaJuridica && (
+                <div className="sm:col-span-2">
+                  <span className="text-muted-foreground">Natureza Jurídica</span>
+                  <p className="font-medium">{company.cnpjNaturezaJuridica}</p>
+                </div>
+              )}
+              {company.cnpjQsa && company.cnpjQsa.length > 0 && (
+                <div className="sm:col-span-2">
+                  <span className="text-muted-foreground">Sócios (QSA)</span>
+                  <div className="mt-1 space-y-1">
+                    {company.cnpjQsa.map((socio, i) => (
+                      <p key={i} className="font-medium text-xs">
+                        {socio.nome} <span className="text-muted-foreground">— {socio.qual}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* Website Analysis */}
+        {company.websiteTitle && (
+          <CollapsibleSection title="Análise do Site" icon={Globe} defaultOpen={false}>
+            <div className="space-y-3 text-sm">
+              {company.websiteTitle && (
+                <div>
+                  <span className="text-muted-foreground">Título</span>
+                  <p className="font-medium">{company.websiteTitle}</p>
+                </div>
+              )}
+              {company.websiteDescription && (
+                <div>
+                  <span className="text-muted-foreground">Descrição</span>
+                  <p className="font-medium">{company.websiteDescription}</p>
+                </div>
+              )}
+              {company.websiteKeywords && company.websiteKeywords.length > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Palavras-chave</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {company.websiteKeywords.slice(0, 15).map((kw, i) => (
+                      <Badge key={i} variant="outline" className="text-[10px]">{kw}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {company.websiteSocialLinks && Object.keys(company.websiteSocialLinks).length > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Redes Sociais</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {Object.entries(company.websiteSocialLinks).map(([platform, url]) => (
+                      <a key={platform} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                        <ExternalLink className="h-3 w-3" />
+                        {platform}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {company.websiteProducts && company.websiteProducts.length > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Produtos/Serviços</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {company.websiteProducts.map((p, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{p}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {company.ecommercePlatform && (
+                <div className="flex gap-4">
+                  <div>
+                    <span className="text-muted-foreground">E-commerce</span>
+                    <p className="font-medium">{company.ecommercePlatform}</p>
+                  </div>
+                  {company.ecommerceProductCount != null && (
+                    <div>
+                      <span className="text-muted-foreground">Produtos</span>
+                      <p className="font-medium">{company.ecommerceProductCount}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* FAQ */}
+        {company.websiteFaq && company.websiteFaq.length > 0 && (
+          <CollapsibleSection title="FAQ do Site" icon={HelpCircle} defaultOpen={false}>
+            <Accordion type="single" collapsible className="w-full">
+              {company.websiteFaq.map((item, i) => (
+                <AccordionItem key={i} value={`faq-${i}`}>
+                  <AccordionTrigger className="text-sm">{item.question}</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    {item.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </CollapsibleSection>
+        )}
+      </CardContent>
+    </Card>
   );
 }

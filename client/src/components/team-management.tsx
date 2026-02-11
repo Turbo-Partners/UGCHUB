@@ -26,7 +26,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useMarketplace } from "@/lib/provider";
 import { Users, UserPlus, Mail, Clock, Trash2, Shield, Crown, Loader2, Copy, Check, ChevronDown, Eye, ArrowRightLeft } from "lucide-react";
@@ -363,195 +362,164 @@ export function TeamManagement() {
           )}
         </div>
 
-        <Tabs defaultValue="members" className="w-full">
-          <TabsList>
-            <TabsTrigger value="members" className="gap-2">
-              <Users className="w-4 h-4" />
-              Membros ({members?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="invites" className="gap-2">
-              <Mail className="w-4 h-4" />
-              Convites pendentes ({pendingInvites.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="members" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Membros da equipe</CardTitle>
-                <CardDescription>
-                  Pessoas com acesso à loja {activeCompany?.name}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingMembers ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : members?.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Nenhum membro encontrado
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {members?.map((member) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center justify-between p-4 rounded-lg border"
-                        data-testid={`member-row-${member.userId}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={member.user.avatar || undefined} />
-                            <AvatarFallback>
-                              {member.user.name?.slice(0, 2).toUpperCase() || "??"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{member.user.name}</p>
-                            <p className="text-sm text-muted-foreground">{member.user.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {isAdmin && member.role !== "owner" && member.userId !== user?.id ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  className="h-auto p-0 hover:bg-transparent"
-                                  data-testid={`dropdown-role-${member.userId}`}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    {getRoleBadge(member.role)}
-                                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                                  </div>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {isOwner && (
-                                  <>
-                                    <DropdownMenuItem 
-                                      onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "owner" })}
-                                      className={member.role === "owner" ? "bg-accent" : ""}
-                                      data-testid={`role-owner-${member.userId}`}
-                                    >
-                                      <Crown className="w-4 h-4 mr-2" />
-                                      Dono (Co-proprietário)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "admin" })}
-                                      className={member.role === "admin" ? "bg-accent" : ""}
-                                      data-testid={`role-admin-${member.userId}`}
-                                    >
-                                      <Shield className="w-4 h-4 mr-2" />
-                                      Administrador
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                <DropdownMenuItem 
-                                  onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "member" })}
-                                  className={member.role === "member" ? "bg-accent" : ""}
-                                  data-testid={`role-member-${member.userId}`}
-                                >
-                                  <Users className="w-4 h-4 mr-2" />
-                                  Membro
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "reader" })}
-                                  className={member.role === "reader" ? "bg-accent" : ""}
-                                  data-testid={`role-reader-${member.userId}`}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  Leitor
-                                </DropdownMenuItem>
-                                {isOwner && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem 
-                                      onClick={() => setTransferOwnershipId(member.userId)}
-                                      className="text-orange-600"
-                                      data-testid={`transfer-ownership-${member.userId}`}
-                                    >
-                                      <ArrowRightLeft className="w-4 h-4 mr-2" />
-                                      Transferir propriedade
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : (
-                            getRoleBadge(member.role)
-                          )}
-                          {(() => {
-                            const ownerCount = members?.filter(m => m.role === "owner").length || 0;
-                            const canRemoveOwner = isOwner && member.role === "owner" && ownerCount > 1 && member.userId !== user?.id;
-                            const canRemoveNonOwner = ((isOwner && member.role !== "owner") || (isAdmin && !isOwner && member.role !== "owner" && member.role !== "admin")) && member.userId !== user?.id;
-                            
-                            if (canRemoveOwner || canRemoveNonOwner) {
-                              return (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => setRemoveMemberId(member.userId)}
-                                  data-testid={`button-remove-member-${member.userId}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Membros da equipe</CardTitle>
+            <CardDescription>
+              Pessoas com acesso à loja {activeCompany?.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingMembers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : members?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum membro encontrado
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {members?.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between p-4 rounded-lg border"
+                    data-testid={`member-row-${member.userId}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={member.user.avatar || undefined} />
+                        <AvatarFallback>
+                          {member.user.name?.slice(0, 2).toUpperCase() || "??"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{member.user.name}</p>
+                        <p className="text-sm text-muted-foreground">{member.user.email}</p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {isAdmin && member.role !== "owner" && member.userId !== user?.id ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="h-auto p-0 hover:bg-transparent"
+                              data-testid={`dropdown-role-${member.userId}`}
+                            >
+                              <div className="flex items-center gap-1">
+                                {getRoleBadge(member.role)}
+                                <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                              </div>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {isOwner && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "owner" })}
+                                  className={member.role === "owner" ? "bg-accent" : ""}
+                                  data-testid={`role-owner-${member.userId}`}
+                                >
+                                  <Crown className="w-4 h-4 mr-2" />
+                                  Dono (Co-proprietário)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "admin" })}
+                                  className={member.role === "admin" ? "bg-accent" : ""}
+                                  data-testid={`role-admin-${member.userId}`}
+                                >
+                                  <Shield className="w-4 h-4 mr-2" />
+                                  Administrador
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "member" })}
+                              className={member.role === "member" ? "bg-accent" : ""}
+                              data-testid={`role-member-${member.userId}`}
+                            >
+                              <Users className="w-4 h-4 mr-2" />
+                              Membro
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "reader" })}
+                              className={member.role === "reader" ? "bg-accent" : ""}
+                              data-testid={`role-reader-${member.userId}`}
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              Leitor
+                            </DropdownMenuItem>
+                            {isOwner && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => setTransferOwnershipId(member.userId)}
+                                  className="text-orange-600"
+                                  data-testid={`transfer-ownership-${member.userId}`}
+                                >
+                                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                                  Transferir propriedade
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        getRoleBadge(member.role)
+                      )}
+                      {(() => {
+                        const ownerCount = members?.filter(m => m.role === "owner").length || 0;
+                        const canRemoveOwner = isOwner && member.role === "owner" && ownerCount > 1 && member.userId !== user?.id;
+                        const canRemoveNonOwner = ((isOwner && member.role !== "owner") || (isAdmin && !isOwner && member.role !== "owner" && member.role !== "admin")) && member.userId !== user?.id;
 
-          <TabsContent value="invites" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Convites pendentes</CardTitle>
-                <CardDescription>
-                  Convites aguardando aceitação
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingInvites ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        if (canRemoveOwner || canRemoveNonOwner) {
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setRemoveMemberId(member.userId)}
+                              data-testid={`button-remove-member-${member.userId}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
-                ) : pendingInvites.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>Nenhum convite pendente</p>
-                    {isAdmin && (
-                      <Button
-                        variant="link"
-                        className="mt-2"
-                        onClick={() => setInviteModalOpen(true)}
-                      >
-                        Convidar alguém
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
+                ))}
+
+                {/* Pending Invites Section */}
+                {pendingInvites.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 pt-4">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5" />
+                        Convites Pendentes ({pendingInvites.length})
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
                     {pendingInvites.map((invite) => (
                       <div
                         key={invite.id}
-                        className="flex items-center justify-between p-4 rounded-lg border"
+                        className="flex items-center justify-between p-4 rounded-lg border border-dashed border-yellow-500/40 bg-yellow-500/5"
                         data-testid={`invite-row-${invite.id}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                            <Mail className="w-4 h-4 text-muted-foreground" />
+                          <div className="h-10 w-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                            <Mail className="w-4 h-4 text-yellow-600" />
                           </div>
                           <div>
-                            <p className="font-medium">{invite.email}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{invite.email}</p>
+                              <Badge variant="outline" className="text-[10px] text-yellow-600 border-yellow-500/40">
+                                Pendente
+                              </Badge>
+                            </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Clock className="w-3 h-3" />
                               <span>
@@ -588,12 +556,12 @@ export function TeamManagement() {
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={inviteModalOpen} onOpenChange={setInviteModalOpen}>

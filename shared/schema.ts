@@ -565,6 +565,16 @@ export const companies = companySchema.table("companies", {
   websitePages: jsonb("website_pages").$type<{ url: string; title: string; summary: string }[]>(),
   websiteSocialLinks: jsonb("website_social_links").$type<Record<string, string>>(),
   
+  // Brand enrichment
+  brandColors: text("brand_colors").array(),
+  brandLogo: text("brand_logo"),
+
+  // AI briefing
+  companyBriefing: text("company_briefing"),
+
+  // Products/services from website
+  websiteProducts: text("website_products").array(),
+
   // E-commerce enrichment
   ecommerceProducts: jsonb("ecommerce_products").$type<{
     name: string;
@@ -3036,7 +3046,27 @@ export const tiktokProfiles = socialSchema.table("tiktok_profiles", {
   lastFetchedAt: timestamp("last_fetched_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+
+  // OAuth fields (TikTok Login Kit)
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scope: text("scope"), // comma-separated scopes granted
+  openId: text("open_id").unique(), // TikTok unique user identifier
+  unionId: text("union_id"), // cross-app identifier
+
+  // Connection metadata
+  connectedByUserId: integer("connected_by_user_id"),
+  connectedAt: timestamp("connected_at"),
+  disconnectedAt: timestamp("disconnected_at"),
+  lastSyncedAt: timestamp("last_synced_at"),
+  syncStatus: text("sync_status", { enum: ["active", "error", "disconnected"] }).default("active"),
+  syncError: text("sync_error"),
+}, (table) => [
+  index("tiktok_profiles_connected_by_user_idx").on(table.connectedByUserId),
+  index("tiktok_profiles_open_id_idx").on(table.openId),
+]);
 
 export const tiktokVideos = socialSchema.table("tiktok_videos", {
   id: serial("id").primaryKey(),

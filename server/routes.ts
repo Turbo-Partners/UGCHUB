@@ -9132,6 +9132,32 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
       else if (natureza.includes("Sociedade Limitada")) porte = "LTDA";
       else if (natureza.includes("Sociedade Anônima")) porte = "S/A";
       
+      // Persist CNPJ data to company
+      const user = req.user! as any;
+      const companyId = user.activeCompanyId || (req as any).session?.activeCompanyId;
+      if (companyId) {
+        try {
+          const { companies } = await import("@shared/schema");
+          const { db } = await import("./db");
+          const { eq } = await import("drizzle-orm");
+          await db.update(companies).set({
+            cnpjRazaoSocial: data.nome || null,
+            cnpjNomeFantasia: data.fantasia || null,
+            cnpjSituacao: data.situacao || null,
+            cnpjAtividadePrincipal: data.atividade_principal?.[0]?.text || null,
+            cnpjDataAbertura: data.abertura || null,
+            cnpjCapitalSocial: data.capital_social || null,
+            cnpjNaturezaJuridica: data.natureza_juridica || null,
+            cnpjQsa: data.qsa?.map((s: any) => ({ nome: s.nome, qual: s.qual })) || null,
+            cnpjLastUpdated: new Date(),
+            lastEnrichedAt: new Date(),
+          }).where(eq(companies.id, companyId));
+          console.log(`[Enrichment] CNPJ data persisted for company ${companyId}`);
+        } catch (dbError) {
+          console.error("[Enrichment] Failed to persist CNPJ data:", dbError);
+        }
+      }
+
       res.json({
         success: true,
         data: {
@@ -9297,6 +9323,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
             lastEnrichedAt: new Date(),
           }).where(eq(companies.id, companyId));
           console.log(`[Enrichment] Website data persisted for company ${companyId}: ${results.length} pages crawled`);
+
         } catch (dbError) {
           console.error("[Enrichment] Failed to persist website data:", dbError);
         }
@@ -9350,6 +9377,8 @@ ${websiteText}
 
 7. CORES DA MARCA: Identifique as cores principais da marca (máximo 3 cores em hexadecimal #RRGGBB).
 
+8. LOGO: Procure a URL do logotipo principal da empresa no HTML (normalmente em <img> com alt contendo "logo", ou em <header>). Retorne a URL absoluta completa. Se não encontrar, retorne null.
+
 Responda APENAS com JSON válido (sem markdown, sem explicações):
 {
   "description": "descrição aqui",
@@ -9366,7 +9395,8 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
     "priceRange": "ex: R$ 50 - R$ 200 ou null"
   },
   "products": ["produto1", "produto2", "produto3"],
-  "brandColors": ["#RRGGBB", "#RRGGBB"]
+  "brandColors": ["#RRGGBB", "#RRGGBB"],
+  "logoUrl": "https://... ou null"
 }`;
 
         const aiResponse = await sendGeminiMessage(prompt, {
@@ -9387,6 +9417,25 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
         // Continue without AI analysis
       }
       
+      // Persist AI-extracted fields (brandColors, logo, products) to DB
+      if (companyId && aiAnalysis) {
+        try {
+          const { companies } = await import("@shared/schema");
+          const { db } = await import("./db");
+          const { eq } = await import("drizzle-orm");
+          const aiUpdateData: Record<string, any> = {};
+          if (aiAnalysis.brandColors?.length > 0) aiUpdateData.brandColors = aiAnalysis.brandColors;
+          if (aiAnalysis.logoUrl) aiUpdateData.brandLogo = aiAnalysis.logoUrl;
+          if (aiAnalysis.products?.length > 0) aiUpdateData.websiteProducts = aiAnalysis.products;
+          if (Object.keys(aiUpdateData).length > 0) {
+            await db.update(companies).set(aiUpdateData).where(eq(companies.id, companyId));
+            console.log(`[Enrichment] AI fields persisted for company ${companyId}:`, Object.keys(aiUpdateData));
+          }
+        } catch (aiDbError) {
+          console.error("[Enrichment] Failed to persist AI fields:", aiDbError);
+        }
+      }
+
       res.json({
         success: true,
         data: {
@@ -9398,6 +9447,7 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
           ecommerce: aiAnalysis?.ecommerce || null,
           products: aiAnalysis?.products || null,
           brandColors: aiAnalysis?.brandColors || null,
+          logoUrl: aiAnalysis?.logoUrl || null,
           text: websiteText.substring(0, 500),
           url: pageData.url,
           pagesCrawled: results.length,
@@ -9465,18 +9515,18 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
   app.post("/api/enrichment/generate-description-v2", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
-    const { companyId, formData, enrichmentContext } = req.body;
+    const { companyId, formData, enrichmentContext, includeBriefing } = req.body;
     if (!companyId) return res.status(400).json({ error: "ID da empresa é obrigatório" });
-    
+
     try {
       const company = await storage.getCompany(companyId);
       if (!company) return res.status(404).json({ error: "Empresa não encontrada" });
-      
+
       const { sendGeminiMessage } = await import("./replit_integrations/gemini");
-      
+
       // Build rich context from all available data
       const contextParts: string[] = [];
-      
+
       // Company form data
       const name = formData?.name || company.name;
       const tradeName = formData?.tradeName || company.tradeName;
@@ -9485,14 +9535,14 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
       const instagram = formData?.instagram || company.instagram;
       const city = formData?.city || company.city;
       const state = formData?.state || company.state;
-      
+
       contextParts.push(`Nome: ${name}`);
       if (tradeName) contextParts.push(`Razão Social: ${tradeName}`);
       if (category) contextParts.push(`Categoria: ${category}`);
       if (website) contextParts.push(`Website: ${website}`);
       if (instagram) contextParts.push(`Instagram: ${instagram}`);
       if (city) contextParts.push(`Localização: ${city}${state ? `/${state}` : ""}`);
-      
+
       // CNPJ enrichment data
       if (enrichmentContext?.cnpjData) {
         const cnpj = enrichmentContext.cnpjData;
@@ -9500,7 +9550,7 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
         if (cnpj.tempoMercado) contextParts.push(`Tempo de Mercado: ${cnpj.tempoMercado}`);
         if (cnpj.porte) contextParts.push(`Porte: ${cnpj.porte}`);
       }
-      
+
       // Website enrichment data
       if (enrichmentContext?.websiteData) {
         const web = enrichmentContext.websiteData;
@@ -9508,22 +9558,44 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
         if (web.products?.length) contextParts.push(`Produtos/Serviços: ${web.products.slice(0, 5).join(", ")}`);
         if (web.ecommerce) contextParts.push(`Tipo: E-commerce`);
       }
-      
+
       // Instagram enrichment data
       if (enrichmentContext?.instagramData) {
         const ig = enrichmentContext.instagramData;
         if (ig.followers) {
-          const followersStr = ig.followers >= 1000000 
-            ? `${(ig.followers / 1000000).toFixed(1)}M` 
-            : ig.followers >= 1000 
-              ? `${(ig.followers / 1000).toFixed(1)}K` 
+          const followersStr = ig.followers >= 1000000
+            ? `${(ig.followers / 1000000).toFixed(1)}M`
+            : ig.followers >= 1000
+              ? `${(ig.followers / 1000).toFixed(1)}K`
               : ig.followers.toString();
           contextParts.push(`Seguidores Instagram: ${followersStr}`);
         }
         if (ig.bio) contextParts.push(`Bio do Instagram: ${ig.bio}`);
         if (ig.isVerified) contextParts.push(`Perfil Verificado: Sim`);
       }
-      
+
+      // Add DB enrichment data for briefing context
+      if (company.websiteAbout) contextParts.push(`Sobre (site): ${company.websiteAbout.substring(0, 500)}`);
+      if (company.websiteProducts?.length) contextParts.push(`Produtos do site: ${company.websiteProducts.join(", ")}`);
+      if (company.cnpjRazaoSocial) contextParts.push(`Razão Social (CNPJ): ${company.cnpjRazaoSocial}`);
+      if (company.cnpjAtividadePrincipal) contextParts.push(`Atividade CNAE: ${company.cnpjAtividadePrincipal}`);
+      if (company.cnpjCapitalSocial) contextParts.push(`Capital Social: R$ ${company.cnpjCapitalSocial}`);
+      if (company.instagramFollowers) contextParts.push(`Seguidores Instagram (DB): ${company.instagramFollowers}`);
+      if (company.instagramBio) contextParts.push(`Bio Instagram (DB): ${company.instagramBio}`);
+
+      const briefingSection = includeBriefing ? `
+
+3. BRIEFING EXECUTIVO (400-800 caracteres):
+   Crie um briefing completo sobre a empresa para uso interno em campanhas de marketing de influência. Inclua:
+   - O que a empresa faz e para quem (público-alvo)
+   - Produtos/serviços principais e diferenciais
+   - Presença digital e tamanho da audiência
+   - Tom de voz sugerido para creators parceiros
+   - Tipo de conteúdo UGC ideal para a marca
+   Use português brasileiro, tom profissional mas acessível.` : "";
+
+      const briefingJsonField = includeBriefing ? ', "briefing": "briefing executivo aqui"' : "";
+
       const prompt = `Você é um copywriter especialista em marketing de influência no Brasil. Crie uma descrição profissional e uma tagline criativa para a empresa abaixo.
 
 === DADOS COLETADOS ===
@@ -9545,18 +9617,37 @@ Com base nos dados acima, crie:
    - Memorável e impactante
    - Capture a essência da marca
    - Em português brasileiro
+${briefingSection}
 
 Responda APENAS com JSON válido (sem markdown):
-{"description": "descrição aqui", "tagline": "tagline aqui"}`;
+{"description": "descrição aqui", "tagline": "tagline aqui"${briefingJsonField}}`;
 
       const aiResponse = await sendGeminiMessage(prompt, {
         model: "gemini-2.5-flash",
         systemInstruction: "Você é um copywriter brasileiro especialista em branding. Responda apenas com JSON válido, sem markdown."
       });
-      
+
       try {
         const cleanJson = aiResponse.replace(/```json?\n?/g, "").replace(/```\n?/g, "").trim();
         const result = JSON.parse(cleanJson);
+
+        // Persist briefing to DB if generated
+        if (includeBriefing && result.briefing) {
+          try {
+            const { companies } = await import("@shared/schema");
+            const { db } = await import("./db");
+            const { eq } = await import("drizzle-orm");
+            await db.update(companies).set({
+              companyBriefing: result.briefing,
+              aiContextSummary: result.briefing,
+              aiContextLastUpdated: new Date(),
+            }).where(eq(companies.id, companyId));
+            console.log(`[Enrichment V2] Briefing persisted for company ${companyId}`);
+          } catch (dbErr) {
+            console.error("[Enrichment V2] Failed to persist briefing:", dbErr);
+          }
+        }
+
         res.json({ success: true, data: result });
       } catch (parseError) {
         console.error("[Enrichment V2] Failed to parse AI response:", aiResponse);
