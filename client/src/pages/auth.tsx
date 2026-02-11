@@ -27,7 +27,7 @@ export default function AuthPage() {
 
   const defaultTab = search.includes('role=company') ? 'company' : 'creator';
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const isDev = import.meta.env.DEV;
+  const isDev = import.meta.env.DEV && window.location.hostname === 'localhost';
 
   // Check for error messages from OAuth redirect
   useEffect(() => {

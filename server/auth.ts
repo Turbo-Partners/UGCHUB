@@ -360,7 +360,7 @@ export function setupAuth(app: Express) {
 
   // Dev-only login (auto creates user/company if needed)
   app.post("/api/dev/login", async (req, res, next) => {
-    if (process.env.NODE_ENV !== "development") {
+    if (process.env.NODE_ENV !== "development" || process.env.RENDER === "true") {
       return res.sendStatus(404);
     }
 
