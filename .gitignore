@@ -5,5 +5,7 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+*.sql
 .local/
 .config/
+uploads/

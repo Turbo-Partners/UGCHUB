@@ -52,7 +52,7 @@ const caseStudies = [
   {
     company: "Cristal Graffiti",
     owner: "Wagner",
-    logo: "/attached_assets/cristal_graffiti_logo_1770062831280.png",
+    logo: "/attached_assets/cristal_graffiti_logo_1769956270651.png",
     headline: "664% de crescimento com UGC",
     description: "Posts do próprio perfil como anúncio + anúncio de catálogo + campanha Black Friday com creators",
     image: "/images/cases/cristal-graffiti-hero.png",

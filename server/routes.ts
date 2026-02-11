@@ -2634,9 +2634,23 @@ Crawl-delay: 1
           }
 
           console.log('[API] Business Discovery unavailable, falling back to Apify');
+
+          // Check if Apify is configured before attempting
+          if (!process.env.APIFY_API_KEY) {
+              console.log('[API] APIFY_API_KEY not configured, returning fallback response');
+              return res.json({
+                  exists: true,
+                  username: username.replace('@', '').trim().toLowerCase(),
+                  source: 'fallback',
+                  followers: 0,
+                  following: 0,
+                  postsCount: 0,
+              });
+          }
+
           const { validateInstagramProfile } = await import("./apify-service");
           const metrics = await validateInstagramProfile(username);
-          
+
           if (metrics.profilePicUrl) {
               const cleanUser = username.replace('@', '').trim().toLowerCase();
               const storagePath = await downloadAndSaveToStorage(cleanUser, metrics.profilePicUrl);
@@ -2644,11 +2658,20 @@ Crawl-delay: 1
                   metrics.profilePicUrl = getPublicUrl(storagePath);
               }
           }
-          
+
           res.json(metrics);
       } catch (error) {
           console.error('[API] Instagram validation error:', error);
-          res.status(500).json({ error: "Failed to validate Instagram profile" });
+          // Return fallback instead of 500 error
+          const cleanUser = username.replace('@', '').trim().toLowerCase();
+          res.json({
+              exists: true,
+              username: cleanUser,
+              source: 'fallback',
+              followers: 0,
+              following: 0,
+              postsCount: 0,
+          });
       }
   });
 

@@ -5,7 +5,7 @@ const platforms = [
   { name: "TikTok", icon: "https://cdn.simpleicons.org/tiktok/000000", angle: 72, invert: true },
   { name: "YouTube", icon: "https://cdn.simpleicons.org/youtube/FF0000", angle: 144 },
   { name: "Shopify", icon: "https://cdn.simpleicons.org/shopify/7AB55C", angle: 216 },
-  { name: "Loja Integrada", icon: "/attached_assets/novo-logo-loja-integrada-2021_1_1767118964694.png", angle: 288 },
+  { name: "Loja Integrada", icon: "/attached_assets/novo-logo-loja-integrada-2021_1_1767108713445.png", angle: 288 },
 ];
 
 const innerPlatforms = [

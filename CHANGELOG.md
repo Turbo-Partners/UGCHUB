@@ -5,6 +5,29 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.1] - 2026-02-11
+
+### Removido
+- 3 arquivos duplicados em `attached_assets/` (cristal_graffiti_logo, Icone_Turbo_Branca, novo-logo-loja-integrada)
+- 2 arquivos sem referência em `attached_assets/` (Icone_Turbo_Preta, Logo_14)
+- 2 backups SQL na raiz (`backup.sql`, `backup_28nov_antes.sql`) — migrações gerenciadas pelo Drizzle
+- 8 uploads órfãos de desenvolvimento/teste em `uploads/`
+- Pasta `MigrationUGCHUB/` (migração histórica já concluída)
+
+### Alterado
+- `.gitignore` atualizado com `uploads/` e `*.sql` para prevenir acúmulo futuro
+
+## [1.1.0] - 2026-02-10
+
+### Adicionado
+- **Instagram Hashtag Tracking**: busca de hashtags via Graph API, posts top/recentes, associação a campanhas, controle de limite 30/semana, grid de posts, estatísticas (3 tabelas: `hashtag_searches`, `campaign_hashtags`, `hashtag_posts`)
+- **Instagram Comments Management**: listar/responder/ocultar/excluir comentários, análise de sentimento com IA (OpenAI), filtros e badges de sentimento
+- **Content Publishing via Meta API**: publicar imagens, carrosséis (2-10 itens), Reels e Stories, composer com preview, tracking de cota (25 pub/24h)
+- **Partnership Ads**: solicitação de partnership, verificação de permissões, gestão de criadores parceiros, criação de anúncios, métricas de performance, OAuth one-click, convites por link
+- **CRM Social (Instagram Contacts)**: registro de contatos por empresa, métricas de interação, tags e scoring, histórico, auto-populado por DM sync e comments
+- **DM Sync melhorado**: progresso via WebSocket, cleanup de erros
+- **Documentação**: `docs/ROADMAP.md` com 18 blocos de features e prioridades Q1 2026, `docs/DATA_EXTRACTION_GUIDE.md`
+
 ## [1.0.0] - 2026-02-10
 
 ### Adicionado

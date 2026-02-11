@@ -59,12 +59,14 @@ export default function AuthPage() {
       if (user.role === 'admin') {
         setLocation('/admin');
       } else if (user.role === 'company') {
-        setLocation('/dashboard');
+        // CompanyDashboard already checks onboardingCompleted
+        // and redirects to /company/onboarding if needed
+        setLocation('/company/home');
       } else {
         if (!user.niche) {
           setLocation('/onboarding');
         } else {
-          setLocation('/feed');
+          setLocation('/explore');
         }
       }
     }

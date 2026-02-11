@@ -439,7 +439,7 @@ function AdBannerTurbo() {
           <div className="relative">
             <div className="w-24 h-24 rounded-3xl bg-emerald-600 flex items-center justify-center shadow-2xl shadow-emerald-500/20 relative overflow-hidden">
               <img 
-                src="/attached_assets/Icone_Turbo_Branca_1770642199382.jpg" 
+                src="/attached_assets/Icone_Turbo_Branca_1770475932553.jpg" 
                 alt="Turbo Partners" 
                 className="w-16 h-16 object-contain mix-blend-screen"
               />
