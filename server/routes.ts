@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { insertCampaignSchema, insertApplicationSchema, insertUserSchema, insertDeliverableSchema, insertDeliverableCommentSchema, insertCampaignTemplateSchema, campaigns, applications, users, campaignInvites, companies, instagramAccounts, brandCreatorMemberships, instagramProfiles } from "@shared/schema";
+import { insertCampaignSchema, insertApplicationSchema, insertUserSchema, insertDeliverableSchema, insertDeliverableCommentSchema, insertCampaignTemplateSchema, structuredBriefingSchema, campaigns, applications, users, campaignInvites, companies, instagramAccounts, brandCreatorMemberships, instagramProfiles } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
@@ -81,10 +81,13 @@ async function saveImageToStorage(imageUrl: string, platform: string, postId: st
 // Helper middleware to require brand/company access
 async function requireBrandAccess(req: Request, brandId: number): Promise<boolean> {
   if (!req.user) return false;
-  
-  // Admin users have access to all brands
-  if (req.user.role === 'admin') return true;
-  
+
+  // Admin users (email-verified) have access to all brands
+  const email = (req.user as any).email || '';
+  const isAdminByRole = req.user.role === 'admin';
+  const isAdminByEmail = email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+  if (isAdminByRole || isAdminByEmail) return true;
+
   // Check if user is a member of the company (brand)
   const membership = await storage.getCompanyMember(req.user.id, brandId);
   return !!membership;
@@ -92,9 +95,12 @@ async function requireBrandAccess(req: Request, brandId: number): Promise<boolea
 
 // Alias for verifyBrandAccess
 async function verifyBrandAccess(user: Express.User, brandId: number): Promise<boolean> {
-  // Admin users have access to all brands
-  if (user.role === 'admin') return true;
-  
+  // Admin users (email-verified) have access to all brands
+  const email = (user as any).email || '';
+  const isAdminByRole = user.role === 'admin';
+  const isAdminByEmail = email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+  if (isAdminByRole || isAdminByEmail) return true;
+
   // Check if user is a member of the company (brand)
   const membership = await storage.getCompanyMember(user.id, brandId);
   return !!membership;
@@ -2883,12 +2889,13 @@ Crawl-delay: 1
       const isAdmin = await storage.isCompanyAdmin(companyId, req.user!.id);
       if (!isAdmin) return res.status(403).json({ error: "Apenas administradores podem editar a loja" });
 
-      const { 
+      const {
         name, tradeName, description, cnpj, phone, email, website, instagram,
         cep, street, number, neighborhood, city, state, complement, logo,
-        coverPhoto, tagline, category, isDiscoverable, onboardingCompleted
+        coverPhoto, tagline, category, annualRevenue, isDiscoverable, onboardingCompleted,
+        companyBriefing, brandColors, websiteProducts, tiktok, structuredBriefing
       } = req.body;
-      
+
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
         return res.status(400).json({ error: "Nome da loja é obrigatório" });
       }
@@ -2914,12 +2921,47 @@ Crawl-delay: 1
         ...(coverPhoto !== undefined && { coverPhoto }),
         ...(tagline !== undefined && { tagline: tagline?.trim() || null }),
         ...(category !== undefined && { category: category || null }),
+        ...(annualRevenue !== undefined && { annualRevenue: annualRevenue || null }),
         ...(isDiscoverable !== undefined && { isDiscoverable: Boolean(isDiscoverable) }),
         ...(onboardingCompleted !== undefined && { onboardingCompleted: Boolean(onboardingCompleted) }),
+        ...(companyBriefing !== undefined && { companyBriefing: companyBriefing?.trim() || null }),
+        ...(brandColors !== undefined && { brandColors: Array.isArray(brandColors) && brandColors.length > 0 ? brandColors : null }),
+        ...(websiteProducts !== undefined && { websiteProducts: Array.isArray(websiteProducts) && websiteProducts.length > 0 ? websiteProducts : null }),
+        ...(structuredBriefing !== undefined && { structuredBriefing: structuredBriefingSchema.parse(structuredBriefing) }),
+        ...(tiktok !== undefined && { tiktok: tiktok?.trim() || null }),
       });
 
+      // Recalculate enrichment score after manual save
+      const freshCompanyForScore = await storage.getCompany(companyId);
+      if (freshCompanyForScore) {
+        const { calculateEnrichmentScore } = await import("./services/company-enrichment");
+        const newScore = calculateEnrichmentScore(freshCompanyForScore);
+        if (newScore !== freshCompanyForScore.enrichmentScore) {
+          await storage.updateCompany(companyId, { enrichmentScore: newScore });
+          (updatedCompany as any).enrichmentScore = newScore;
+        }
+      }
+
       res.json(updatedCompany);
+
+      // Auto-enrich after onboarding completion (async, non-blocking)
+      if (onboardingCompleted === true) {
+        setImmediate(async () => {
+          try {
+            const freshCompany = await storage.getCompany(companyId);
+            if (freshCompany && !freshCompany.lastEnrichedAt) {
+              const { fullEnrichmentPipeline } = await import("./services/company-enrichment");
+              await fullEnrichmentPipeline(companyId);
+            }
+          } catch (e) {
+            console.error(`[API] Post-onboarding enrichment error for company ${companyId}:`, e);
+          }
+        });
+      }
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Dados inválidos", details: error.errors });
+      }
       console.error('[API] Error updating company:', error);
       res.status(500).json({ error: "Erro ao atualizar loja" });
     }
@@ -3002,9 +3044,10 @@ Crawl-delay: 1
     if (req.user!.role !== 'company') return res.sendStatus(403);
 
     try {
-      const { 
+      const {
         name, tradeName, description, cnpj, phone, email,
-        cep, street, number, neighborhood, city, state, complement 
+        instagram, website,
+        cep, street, number, neighborhood, city, state, complement
       } = req.body;
       
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -3041,9 +3084,24 @@ Crawl-delay: 1
         neighborhood: neighborhood?.trim() || null,
         city: city?.trim() || null,
         state: state?.trim() || null,
+        instagram: instagram?.trim() || null,
+        website: website?.trim() || null,
         complement: complement?.trim() || null,
         createdByUserId: req.user!.id,
       });
+
+      // Auto-enrichment if company has CNPJ, Instagram, or website
+      if (company.cnpj || company.instagram || company.website) {
+        setImmediate(async () => {
+          try {
+            const { fullEnrichmentPipeline } = await import("./services/company-enrichment");
+            await fullEnrichmentPipeline(company.id);
+            console.log(`[API] Auto-enrichment completed for company ${company.id}`);
+          } catch (e) {
+            console.error('[API] Auto-enrichment failed for company', company.id, e);
+          }
+        });
+      }
 
       // Add the creator as owner
       await storage.addCompanyMember({
@@ -3686,12 +3744,21 @@ Crawl-delay: 1
     }
     const email = req.user?.email || '';
     const isAdminByRole = req.user?.role === 'admin';
-    const isAdminByEmail = email.endsWith('@turbopartners.com') || email === 'rodrigoqs9@gmail.com';
-    
+    const isAdminByEmail = email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+
     if (!isAdminByRole && !isAdminByEmail) {
       return res.sendStatus(403);
     }
     next();
+  };
+
+  // Helper function to check admin access (same logic as isAdmin middleware)
+  const checkAdminAccess = (req: any): boolean => {
+    if (!req.isAuthenticated()) return false;
+    const email = req.user?.email || '';
+    const isAdminByRole = req.user?.role === 'admin';
+    const isAdminByEmail = email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+    return isAdminByRole || isAdminByEmail;
   };
 
   app.get("/api/admin/stats", isAdmin, async (req, res) => {
@@ -4947,12 +5014,35 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
           state: companyData?.state || null,
           website: companyData?.website || null,
           instagram: companyData?.instagram || stats.company.instagram,
+          tiktok: companyData?.tiktok || null,
           email: companyData?.email || null,
           phone: companyData?.phone || null,
           cnpj: companyData?.cnpj || null,
           isFeatured: companyData?.isFeatured || false,
           isDiscoverable: companyData?.isDiscoverable ?? true,
           createdAt: stats.company.createdAt,
+          companyBriefing: companyData?.companyBriefing || companyData?.aiContextSummary || null,
+          structuredBriefing: companyData?.structuredBriefing || null,
+          brandColors: companyData?.brandColors || null,
+          brandLogo: companyData?.brandLogo || null,
+          websiteProducts: companyData?.websiteProducts || null,
+          // CNPJ enrichment (public-safe fields)
+          cnpjRazaoSocial: companyData?.cnpjRazaoSocial || null,
+          cnpjSituacao: companyData?.cnpjSituacao || null,
+          cnpjAtividadePrincipal: companyData?.cnpjAtividadePrincipal || null,
+          cnpjDataAbertura: companyData?.cnpjDataAbertura || null,
+          cnpjNaturezaJuridica: companyData?.cnpjNaturezaJuridica || null,
+          // Website enrichment
+          websiteTitle: companyData?.websiteTitle || null,
+          websiteDescription: companyData?.websiteDescription || null,
+          websiteKeywords: companyData?.websiteKeywords || null,
+          websiteSocialLinks: companyData?.websiteSocialLinks || null,
+          websiteFaq: companyData?.websiteFaq || null,
+          // E-commerce enrichment
+          ecommercePlatform: companyData?.ecommercePlatform || null,
+          ecommerceProductCount: companyData?.ecommerceProductCount || null,
+          ecommerceCategories: companyData?.ecommerceCategories || null,
+          enrichmentScore: companyData?.enrichmentScore || null,
         };
 
         const favoriteCount = await storage.getCompanyFavoriteCount(companyId);
@@ -4982,6 +5072,63 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     } catch (error) {
       console.error('[API] Error getting company public stats:', error);
       res.status(500).json({ error: "Erro ao buscar estatísticas da empresa" });
+    }
+  });
+
+  // Get creator's membership status for a company community
+  app.get("/api/companies/:companyId/membership-status", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const companyId = parseInt(req.params.companyId);
+      const membership = await storage.getBrandCreatorMembershipByCreatorAndCompany(req.user!.id, companyId);
+
+      if (membership) {
+        res.json({
+          isMember: membership.status === "active",
+          status: membership.status,
+          joinedAt: membership.joinedAt,
+        });
+      } else {
+        res.json({ isMember: false, status: null, joinedAt: null });
+      }
+    } catch (error) {
+      console.error('[API] Error getting membership status:', error);
+      res.status(500).json({ error: "Erro ao verificar status de membro" });
+    }
+  });
+
+  // Creator requests to join a company community
+  app.post("/api/companies/:companyId/request-membership", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || req.user!.role !== 'creator') {
+        return res.status(403).json({ error: "Apenas creators podem solicitar entrada" });
+      }
+
+      const companyId = parseInt(req.params.companyId);
+
+      const existing = await storage.getBrandCreatorMembershipByCreatorAndCompany(req.user!.id, companyId);
+      if (existing?.status === "active") {
+        return res.status(400).json({ error: "Você já é membro desta comunidade" });
+      }
+      if (existing?.status === "invited") {
+        return res.status(400).json({ error: "Sua solicitação já está pendente" });
+      }
+
+      await storage.createBrandCreatorMembership({
+        creatorId: req.user!.id,
+        companyId,
+        status: "invited",
+        source: "self_request",
+        joinedAt: null,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[API] Error requesting membership:', error);
+      res.status(500).json({ error: "Erro ao solicitar entrada na comunidade" });
     }
   });
 
@@ -5112,7 +5259,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     if (!req.isAuthenticated() || !req.user) {
       return res.sendStatus(401);
     }
-    if (req.user.role !== 'company' && req.user.role !== 'admin') {
+    if (req.user.role !== 'company' && !checkAdminAccess(req)) {
       return res.sendStatus(403);
     }
     const { limit = 5 } = req.body || {};
@@ -5212,7 +5359,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
   app.get("/api/gamification/levels", async (req, res) => {
     try {
       const gamificationEnabled = await storage.isFeatureEnabled('gamification_enabled');
-      if (!gamificationEnabled && req.user?.role !== 'admin') {
+      if (!gamificationEnabled && !checkAdminAccess(req)) {
         return res.status(403).json({ error: "Gamification feature is not enabled" });
       }
       const levels = await storage.getCreatorLevels();
@@ -5227,7 +5374,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
   app.get("/api/gamification/badges", async (req, res) => {
     try {
       const gamificationEnabled = await storage.isFeatureEnabled('gamification_enabled');
-      if (!gamificationEnabled && req.user?.role !== 'admin') {
+      if (!gamificationEnabled && !checkAdminAccess(req)) {
         return res.status(403).json({ error: "Gamification feature is not enabled" });
       }
       const allBadges = await storage.getBadges();
@@ -5242,7 +5389,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
   app.get("/api/gamification/creator/:creatorId", async (req, res) => {
     try {
       const gamificationEnabled = await storage.isFeatureEnabled('gamification_enabled');
-      if (!gamificationEnabled && req.user?.role !== 'admin') {
+      if (!gamificationEnabled && !checkAdminAccess(req)) {
         return res.status(403).json({ error: "Gamification feature is not enabled" });
       }
 
@@ -5274,7 +5421,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
   app.get("/api/gamification/leaderboard", async (req, res) => {
     try {
       const leaderboardEnabled = await storage.isFeatureEnabled('leaderboard_enabled');
-      if (!leaderboardEnabled && req.user?.role !== 'admin') {
+      if (!leaderboardEnabled && !checkAdminAccess(req)) {
         return res.status(403).json({ error: "Leaderboard feature is not enabled" });
       }
 
@@ -5312,7 +5459,7 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
   // Get analytics feature status (only for companies and admins)
   app.get("/api/analytics/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== 'company' && req.user!.role !== 'admin') {
+    if (req.user!.role !== 'company' && !checkAdminAccess(req)) {
       return res.json({ analyticsEnabled: false, pdfReportsEnabled: false });
     }
 
@@ -5969,15 +6116,6 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     const pendencias = await storage.getBrandPendencias(brandId);
     res.json(pendencias);
   });
-
-  // Helper function to check admin access (same logic as isAdmin middleware)
-  const checkAdminAccess = (req: any): boolean => {
-    if (!req.isAuthenticated()) return false;
-    const email = req.user?.email || '';
-    const isAdminByRole = req.user?.role === 'admin';
-    const isAdminByEmail = email.endsWith('@turbopartners.com') || email === 'rodrigoqs9@gmail.com';
-    return isAdminByRole || isAdminByEmail;
-  };
 
   // ==========================================
   // BRANDED LANDING PAGES ROUTES
@@ -8806,14 +8944,12 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
 
   // ========== ADMIN: ACADEMY CMS ==========
   
-  app.get("/api/admin/academy/courses", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.get("/api/admin/academy/courses", isAdmin, async (req, res) => {
     const courses = await storage.getAllCourses();
     res.json(courses);
   });
 
-  app.post("/api/admin/academy/courses", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.post("/api/admin/academy/courses", isAdmin, async (req, res) => {
     const { slug, title, description, level, estimatedMinutes, coverUrl, isPublished } = req.body;
     if (!slug || !title) return res.status(400).json({ error: "slug e title são obrigatórios" });
     
@@ -8829,22 +8965,19 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     res.json(course);
   });
 
-  app.put("/api/admin/academy/courses/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.put("/api/admin/academy/courses/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     const updated = await storage.updateCourse(id, req.body);
     res.json(updated);
   });
 
-  app.delete("/api/admin/academy/courses/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.delete("/api/admin/academy/courses/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     await storage.deleteCourse(id);
     res.json({ success: true });
   });
 
-  app.post("/api/admin/academy/modules", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.post("/api/admin/academy/modules", isAdmin, async (req, res) => {
     const { courseId, title, order } = req.body;
     if (!courseId || !title) return res.status(400).json({ error: "courseId e title são obrigatórios" });
     
@@ -8852,22 +8985,19 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     res.json(mod);
   });
 
-  app.put("/api/admin/academy/modules/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.put("/api/admin/academy/modules/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     const updated = await storage.updateCourseModule(id, req.body);
     res.json(updated);
   });
 
-  app.delete("/api/admin/academy/modules/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.delete("/api/admin/academy/modules/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     await storage.deleteCourseModule(id);
     res.json({ success: true });
   });
 
-  app.post("/api/admin/academy/lessons", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.post("/api/admin/academy/lessons", isAdmin, async (req, res) => {
     const { moduleId, title, order, contentType, content, durationMinutes } = req.body;
     if (!moduleId || !title) return res.status(400).json({ error: "moduleId e title são obrigatórios" });
     
@@ -8882,15 +9012,13 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     res.json(lesson);
   });
 
-  app.put("/api/admin/academy/lessons/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.put("/api/admin/academy/lessons/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     const updated = await storage.updateCourseLesson(id, req.body);
     res.json(updated);
   });
 
-  app.delete("/api/admin/academy/lessons/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.delete("/api/admin/academy/lessons/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     await storage.deleteCourseLesson(id);
     res.json({ success: true });
@@ -8898,15 +9026,13 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
 
   // ========== ADMIN: INSPIRATIONS CMS ==========
   
-  app.get("/api/admin/inspirations", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.get("/api/admin/inspirations", isAdmin, async (req, res) => {
     const { scope } = req.query;
     const inspirations = await storage.listInspirations({ scope: (scope as string) || 'global' });
     res.json(inspirations);
   });
 
-  app.post("/api/admin/inspirations", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.post("/api/admin/inspirations", isAdmin, async (req, res) => {
     const { title, description, platform, format, url, thumbnailUrl, tags, nicheTags, isPublished } = req.body;
     if (!title || !platform || !format || !url) {
       return res.status(400).json({ error: "title, platform, format e url são obrigatórios" });
@@ -8929,15 +9055,13 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     res.json(inspiration);
   });
 
-  app.put("/api/admin/inspirations/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.put("/api/admin/inspirations/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     const updated = await storage.updateInspiration(id, req.body);
     res.json(updated);
   });
 
-  app.delete("/api/admin/inspirations/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') return res.sendStatus(403);
+  app.delete("/api/admin/inspirations/:id", isAdmin, async (req, res) => {
     const id = parseInt(req.params.id);
     await storage.deleteInspiration(id);
     res.json({ success: true });
@@ -9305,7 +9429,14 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
       const uniqueKeywords = Array.from(new Set(allKeywords.filter(Boolean))).slice(0, 30);
 
       const user = req.user! as any;
-      const companyId = user.activeCompanyId || (req as any).session?.activeCompanyId;
+      let companyId = user.activeCompanyId || (req as any).session?.activeCompanyId;
+      // Fallback: lookup via company membership if session doesn't have activeCompanyId
+      if (!companyId) {
+        try {
+          const memberships = await storage.getUserCompanies(req.user!.id);
+          if (memberships.length > 0) companyId = memberships[0].companyId;
+        } catch { /* ignore */ }
+      }
       if (companyId) {
         try {
           const { companies } = await import("@shared/schema");
@@ -9430,6 +9561,13 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
           if (Object.keys(aiUpdateData).length > 0) {
             await db.update(companies).set(aiUpdateData).where(eq(companies.id, companyId));
             console.log(`[Enrichment] AI fields persisted for company ${companyId}:`, Object.keys(aiUpdateData));
+          }
+          // Recalculate enrichment score after website enrichment
+          const freshCo = await storage.getCompany(companyId);
+          if (freshCo) {
+            const { calculateEnrichmentScore } = await import("./services/company-enrichment");
+            const newScore = calculateEnrichmentScore(freshCo);
+            await storage.updateCompany(companyId, { enrichmentScore: newScore });
           }
         } catch (aiDbError) {
           console.error("[Enrichment] Failed to persist AI fields:", aiDbError);
@@ -9585,16 +9723,17 @@ Responda APENAS com JSON válido (sem markdown, sem explicações):
 
       const briefingSection = includeBriefing ? `
 
-3. BRIEFING EXECUTIVO (400-800 caracteres):
-   Crie um briefing completo sobre a empresa para uso interno em campanhas de marketing de influência. Inclua:
-   - O que a empresa faz e para quem (público-alvo)
-   - Produtos/serviços principais e diferenciais
-   - Presença digital e tamanho da audiência
-   - Tom de voz sugerido para creators parceiros
-   - Tipo de conteúdo UGC ideal para a marca
+3. BRIEFING ESTRUTURADO (JSON):
+   Gere um briefing estruturado da marca para uso em campanhas de marketing de influência. Retorne como objeto JSON com os campos:
+   - "whatWeDo": O que a empresa faz (2-3 frases, máximo 300 caracteres)
+   - "targetAudience": Público-alvo detalhado (2-3 frases, máximo 300 caracteres)
+   - "brandVoice": Tom de voz (uma palavra entre: formal, descontraido, tecnico, inspiracional, divertido, premium, jovem)
+   - "differentials": Diferenciais competitivos (2-3 frases, máximo 300 caracteres)
+   - "idealContentTypes": Array de tipos de conteúdo ideais (escolha entre: review, unboxing, tutorial, lifestyle, antes_depois, receita, day_in_life, depoimento, challenge, behind_scenes)
+   - "avoidTopics": Temas a evitar (se aplicável, senão string vazia)
    Use português brasileiro, tom profissional mas acessível.` : "";
 
-      const briefingJsonField = includeBriefing ? ', "briefing": "briefing executivo aqui"' : "";
+      const briefingJsonField = includeBriefing ? ', "structuredBriefing": { "whatWeDo": "...", "targetAudience": "...", "brandVoice": "formal", "differentials": "...", "idealContentTypes": ["review"], "avoidTopics": "" }' : "";
 
       const prompt = `Você é um copywriter especialista em marketing de influência no Brasil. Crie uma descrição profissional e uma tagline criativa para a empresa abaixo.
 
@@ -9632,17 +9771,29 @@ Responda APENAS com JSON válido (sem markdown):
         const result = JSON.parse(cleanJson);
 
         // Persist briefing to DB if generated
-        if (includeBriefing && result.briefing) {
+        if (includeBriefing && result.structuredBriefing) {
           try {
             const { companies } = await import("@shared/schema");
             const { db } = await import("./db");
             const { eq } = await import("drizzle-orm");
+            const sb = result.structuredBriefing;
+            // Generate text briefing from structured data
+            const textParts: string[] = [];
+            if (sb.whatWeDo) textParts.push(sb.whatWeDo);
+            if (sb.targetAudience) textParts.push(`Público-alvo: ${sb.targetAudience}`);
+            if (sb.differentials) textParts.push(`Diferenciais: ${sb.differentials}`);
+            if (sb.brandVoice) textParts.push(`Tom de voz: ${sb.brandVoice}`);
+            if (sb.idealContentTypes?.length) textParts.push(`Conteúdo ideal: ${sb.idealContentTypes.join(", ")}`);
+            if (sb.avoidTopics) textParts.push(`Evitar: ${sb.avoidTopics}`);
+            const textBriefing = textParts.join(". ");
+
             await db.update(companies).set({
-              companyBriefing: result.briefing,
-              aiContextSummary: result.briefing,
+              structuredBriefing: sb,
+              companyBriefing: textBriefing,
+              aiContextSummary: textBriefing,
               aiContextLastUpdated: new Date(),
             }).where(eq(companies.id, companyId));
-            console.log(`[Enrichment V2] Briefing persisted for company ${companyId}`);
+            console.log(`[Enrichment V2] Structured briefing persisted for company ${companyId}`);
           } catch (dbErr) {
             console.error("[Enrichment V2] Failed to persist briefing:", dbErr);
           }
@@ -9804,11 +9955,11 @@ Responda APENAS com JSON:
       return res.status(404).send('Not found');
     }
     
-    // Require admin authentication
-    if (!req.isAuthenticated() || req.user!.role !== 'admin') {
+    // Require admin authentication (email-verified)
+    if (!checkAdminAccess(req)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
-    
+
     const { previewApplicationApprovedEmail, previewWeeklyReportEmail, previewOnboardingWelcomeEmail } = await import('./email');
     const type = req.params.type;
     

@@ -11,14 +11,18 @@ import { registerBlogRoutes } from "./blog.routes";
 import { registerHashtagRoutes } from "./hashtag.routes";
 import { registerCommentsRoutes } from "./comments.routes";
 import { registerPublishingRoutes } from "./publishing.routes";
+import { registerTikTokRoutes } from "./tiktok.routes";
+import { registerBrandCanvasRoutes } from "./brand-canvas.routes";
 
 export function registerModularRoutes(app: Express): void {
   registerUserRoutes(app);
   registerCampaignRoutes(app);
   registerMessagingRoutes(app);
   registerInstagramRoutes(app);
+  registerTikTokRoutes(app);
   registerMetaMarketingRoutes(app);
   registerCreatorInvitationRoutes(app);
+  registerBrandCanvasRoutes(app);
   registerBlogRoutes(app);
   registerHashtagRoutes(app);
   registerCommentsRoutes(app);

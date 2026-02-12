@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TagsInput } from '@/components/ui/tags-input';
-import { ArrowLeft, Loader2, Save, Store, AlertTriangle, FileText, Plus, Globe, Lock, CheckCircle, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Store, AlertTriangle, FileText, Plus, Globe, Lock, CheckCircle, Users, Sparkles } from 'lucide-react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from '@/hooks/use-toast';
@@ -99,6 +99,7 @@ export default function CreateCampaign() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showCreateCompanyModal, setShowCreateCompanyModal] = useState(false);
   const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
 
   const createCampaignMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -261,6 +262,51 @@ export default function CreateCampaign() {
   const clearAllStates = () => {
     setSelectedRegions([]);
     form.setValue('targetRegions', []);
+  };
+
+  const handleAutoFill = async () => {
+    setIsAutoFilling(true);
+    try {
+      const title = form.getValues('title');
+      const platforms = form.getValues('targetPlatforms');
+      const res = await apiRequest('POST', '/api/campaigns/generate-briefing', {
+        campaignTitle: title || undefined,
+        targetPlatforms: platforms?.length ? platforms : undefined,
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        const d = json.data;
+        if (d.description) form.setValue('description', d.description);
+        if (d.briefingText) {
+          // Use briefingText as additional requirements context
+          const currentReqs = form.getValues('requirements') || [];
+          if (d.requirements?.length) {
+            form.setValue('requirements', [...currentReqs, ...d.requirements.filter((r: string) => !currentReqs.includes(r))]);
+          }
+        }
+        if (d.suggestedNiches?.length) {
+          setSelectedNiches(d.suggestedNiches);
+          form.setValue('targetNiche', d.suggestedNiches);
+        }
+        if (d.suggestedRegions?.length) {
+          setSelectedRegions(d.suggestedRegions);
+          form.setValue('targetRegions', d.suggestedRegions);
+        }
+        toast({
+          title: "Campos preenchidos com IA",
+          description: "Revise e ajuste os dados gerados antes de publicar.",
+        });
+      }
+    } catch (error: any) {
+      const msg = error?.message || "Erro ao gerar briefing";
+      toast({
+        title: "Erro no auto-fill",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAutoFilling(false);
+    }
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -437,10 +483,28 @@ export default function CreateCampaign() {
       {creationMode && (
       <Card className="border-none shadow-xl shadow-indigo-100/50">
         <CardHeader>
-          <CardTitle>Detalhes da Campanha</CardTitle>
-          <CardDescription>
-            Seja o mais específico possível para obter as melhores combinações.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Detalhes da Campanha</CardTitle>
+              <CardDescription>
+                Seja o mais específico possível para obter as melhores combinações.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAutoFill}
+              disabled={isAutoFilling}
+              className="shrink-0 gap-2 border-violet-300 text-violet-700 hover:bg-violet-50"
+            >
+              {isAutoFilling ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {isAutoFilling ? "Gerando..." : "Preencher com IA"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>

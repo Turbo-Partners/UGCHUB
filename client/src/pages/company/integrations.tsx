@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { EcommerceIntegration } from "@shared/schema";
+import { useTikTokAccount, useDisconnectTikTok, useSyncTikTok } from "@/hooks/use-tiktok";
 
 import blingIcon from "@/assets/integrations/bling.png";
 import nuvemshopIcon from "@/assets/integrations/nuvemshop.png";
@@ -126,15 +127,26 @@ const platformDefinitions: PlatformDefinition[] = [
     implemented: true,
   },
   {
+    id: "meta_business",
+    name: "Meta Business",
+    description: "Facebook & Instagram Ads Manager",
+    icon: <MetaIcon />,
+    color: "text-blue-600",
+    bgColor: "bg-blue-500/10",
+    category: "social_ads",
+    status: "available",
+    implemented: true,
+  },
+  {
     id: "tiktok_ads",
     name: "TikTok",
-    description: "Métricas e anúncios do TikTok",
+    description: "Métricas e dados do TikTok",
     icon: <TikTokIcon />,
     color: "text-gray-900 dark:text-white",
     bgColor: "bg-gray-500/10",
     category: "social_ads",
     status: "available",
-    implemented: false,
+    implemented: true,
   },
   {
     id: "youtube",
@@ -146,17 +158,6 @@ const platformDefinitions: PlatformDefinition[] = [
     category: "social_ads",
     status: "available",
     implemented: false,
-  },
-  {
-    id: "meta_business",
-    name: "Meta Business",
-    description: "Facebook & Instagram Ads Manager",
-    icon: <MetaIcon />,
-    color: "text-blue-600",
-    bgColor: "bg-blue-500/10",
-    category: "social_ads",
-    status: "available",
-    implemented: true,
   },
   {
     id: "google_analytics",
@@ -442,6 +443,11 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
     },
   });
 
+  // TikTok OAuth
+  const { connected: tiktokConnected, account: tiktokAccount } = useTikTokAccount();
+  const tiktokDisconnectMutation = useDisconnectTikTok();
+  const tiktokSyncMutation = useSyncTikTok();
+
   const [isSyncingInstagram, setIsSyncingInstagram] = useState(false);
   const [isSyncingMeta, setIsSyncingMeta] = useState(false);
 
@@ -626,6 +632,10 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
       }
       return;
     }
+    if (platform.id === "tiktok_ads") {
+      window.location.href = "/api/tiktok/oauth/authorize?returnTo=/company/integrations";
+      return;
+    }
     setSelectedPlatform(platform);
     setIsAddingNew(true);
   };
@@ -695,6 +705,7 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
     ...(integrations?.map(i => i.platform) || []),
     ...(instagramAccount?.connected ? ["instagram_business"] : []),
     ...(metaAccount?.connected ? ["meta_business"] : []),
+    ...(tiktokConnected ? ["tiktok_ads"] : []),
   ];
 
   const socialAdsPlatforms = platformDefinitions.filter(p => p.category === "social_ads");
@@ -733,24 +744,10 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
         </TabsList>
 
         <TabsContent value="connections" className="space-y-6">
-          {/* Header com botão de sincronizar */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Link2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Gerenciar Integrações</h3>
-                <p className="text-sm text-muted-foreground">
-                  {connectedPlatformIds.length > 0 
-                    ? `${connectedPlatformIds.length} integração(ões) ativa(s)`
-                    : "Conecte suas plataformas para sincronizar dados"
-                  }
-                </p>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
+          {/* Botão de sincronizar tudo */}
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
               size="sm"
               className="gap-2"
               data-testid="button-sync-all"
@@ -921,6 +918,7 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                 const isConnected = connectedPlatformIds.includes(platform.id);
                 const isInstagramConnected = platform.id === "instagram_business" && isConnected;
                 const isMetaConnected = platform.id === "meta_business" && isConnected;
+                const isTikTokConnected = platform.id === "tiktok_ads" && isConnected;
                 const isLocked = !platform.implemented && !isConnected;
                 return (
                   <Card 
@@ -959,14 +957,6 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                               </Badge>
                             )}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {isConnected ? "Sincronizando dados" : isLocked ? "Integração em desenvolvimento" : "Disponível para integração"}
-                          </p>
-                          {!isConnected && !isLocked && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {platform.description}
-                            </p>
-                          )}
                           {isInstagramConnected && instagramAccount?.account && (
                             <p className="text-xs text-muted-foreground mt-2">
                               @{instagramAccount.account.username}
@@ -975,6 +965,11 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                           {isMetaConnected && metaAccount?.account && (
                             <p className="text-xs text-muted-foreground mt-2">
                               {metaAccount.account.metaUserName}
+                            </p>
+                          )}
+                          {isTikTokConnected && tiktokAccount && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              @{tiktokAccount.uniqueId}
                             </p>
                           )}
                         </div>
@@ -1021,9 +1016,9 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                       )}
                       {isMetaConnected && (
                         <div className="mt-4 space-y-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="w-full"
                             onClick={handleSyncMeta}
                             disabled={isSyncingMeta}
@@ -1032,9 +1027,9 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                             <RefreshCw className={`h-4 w-4 mr-2 ${isSyncingMeta ? 'animate-spin' : ''}`} />
                             {isSyncingMeta ? "Sincronizando..." : "Sincronizar"}
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={handleDisconnectMeta}
                             disabled={isDisconnecting}
@@ -1042,6 +1037,32 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             {isDisconnecting ? "Desconectando..." : "Desconectar"}
+                          </Button>
+                        </div>
+                      )}
+                      {isTikTokConnected && (
+                        <div className="mt-4 space-y-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => tiktokSyncMutation.mutate()}
+                            disabled={tiktokSyncMutation.isPending}
+                            data-testid="button-sync-tiktok"
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${tiktokSyncMutation.isPending ? 'animate-spin' : ''}`} />
+                            {tiktokSyncMutation.isPending ? "Sincronizando..." : "Sincronizar"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => tiktokDisconnectMutation.mutate()}
+                            disabled={tiktokDisconnectMutation.isPending}
+                            data-testid="button-disconnect-tiktok"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {tiktokDisconnectMutation.isPending ? "Desconectando..." : "Desconectar"}
                           </Button>
                         </div>
                       )}
@@ -1098,14 +1119,6 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
                               </Badge>
                             )}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {isConnected ? "Sincronizando dados" : isLocked ? "Integração em desenvolvimento" : "Disponível para integração"}
-                          </p>
-                          {!isLocked && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {platform.description}
-                            </p>
-                          )}
                         </div>
                       </div>
                       {!isConnected && !isLocked && (

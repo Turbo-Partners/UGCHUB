@@ -95,3 +95,53 @@ export const STATE_OPTIONS = [
   { value: "SE", label: "Sergipe" },
   { value: "TO", label: "Tocantins" },
 ];
+
+export const IDEAL_CONTENT_TYPES = [
+  { value: "review", label: "Review" },
+  { value: "unboxing", label: "Unboxing" },
+  { value: "tutorial", label: "Tutorial" },
+  { value: "lifestyle", label: "Lifestyle" },
+  { value: "antes_depois", label: "Antes e Depois" },
+  { value: "receita", label: "Receita" },
+  { value: "day_in_life", label: "Day in the Life" },
+  { value: "depoimento", label: "Depoimento" },
+  { value: "challenge", label: "Challenge" },
+  { value: "behind_scenes", label: "Behind the Scenes" },
+] as const;
+
+export const BRAND_VOICE_OPTIONS = [
+  { value: "formal", label: "Formal" },
+  { value: "descontraido", label: "Descontraído" },
+  { value: "tecnico", label: "Técnico" },
+  { value: "inspiracional", label: "Inspiracional" },
+  { value: "divertido", label: "Divertido" },
+  { value: "premium", label: "Premium" },
+  { value: "jovem", label: "Jovem" },
+] as const;
+
+export const ANNUAL_REVENUE_OPTIONS = [
+  "R$0 – R$30.000",
+  "R$30.000 – R$50.000",
+  "R$50.000 – R$100.000",
+  "R$100.000 – R$500.000",
+  "R$500.000 – R$1 milhão",
+  "R$1 milhão – R$5 milhões",
+  "R$5 milhões – R$15 milhões",
+  "R$15 milhões – R$30 milhões",
+  "Mais de R$30 milhões",
+] as const;
+
+export const BRAZIL_REGIONS: Record<string, string[]> = {
+  sudeste: ["SP", "RJ", "MG", "ES"],
+  sul: ["PR", "SC", "RS"],
+  nordeste: ["BA", "CE", "PE", "MA", "PB", "RN", "PI", "AL", "SE"],
+  norte: ["AM", "PA", "AC", "RO", "RR", "AP", "TO"],
+  centro_oeste: ["GO", "MT", "MS", "DF"],
+};
+
+export function getRegionForState(state: string): string | null {
+  for (const [region, states] of Object.entries(BRAZIL_REGIONS)) {
+    if (states.includes(state.toUpperCase())) return region;
+  }
+  return null;
+}

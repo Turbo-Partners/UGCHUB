@@ -18,8 +18,8 @@ import { apiRequest } from '@/lib/queryClient';
 const steps = [
   {
     id: 'about',
-    title: "Sobre Voc\u00ea",
-    description: "Conte um pouco sobre voc\u00ea e seus nichos",
+    title: "Sobre Você",
+    description: "Conte um pouco sobre você e seus nichos",
     icon: <User className="w-5 h-5" />
   },
   {
@@ -30,14 +30,14 @@ const steps = [
   },
   {
     id: 'banking',
-    title: "Dados Banc\u00e1rios",
-    description: "Onde voc\u00ea receber\u00e1 seus pagamentos",
+    title: "Dados Bancários",
+    description: "Onde você receberá seus pagamentos",
     icon: <CreditCard className="w-5 h-5" />
   },
   {
     id: 'personal',
     title: "Seus Dados",
-    description: "Informa\u00e7\u00f5es pessoais para faturamento",
+    description: "Informações pessoais para faturamento",
     icon: <Building2 className="w-5 h-5" />
   }
 ];
@@ -46,9 +46,9 @@ const NICHE_OPTIONS = [
   { value: "tech", label: "Tecnologia & Games" },
   { value: "lifestyle", label: "Estilo de Vida & Vlogs" },
   { value: "beauty", label: "Beleza & Moda" },
-  { value: "education", label: "Educa\u00e7\u00e3o" },
-  { value: "finance", label: "Finan\u00e7as & Investimentos" },
-  { value: "health", label: "Sa\u00fade & Fitness" },
+  { value: "education", label: "Educação" },
+  { value: "finance", label: "Finanças & Investimentos" },
+  { value: "health", label: "Saúde & Fitness" },
   { value: "travel", label: "Viagens" },
   { value: "food", label: "Gastronomia" },
   { value: "entertainment", label: "Entretenimento & Humor" }
@@ -89,10 +89,18 @@ export default function CreatorOnboarding() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [instagramConnected, setInstagramConnected] = useState(false);
   const [instagramAccount, setInstagramAccount] = useState<any>(null);
+  const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [tiktokAccount, setTiktokAccount] = useState<any>(null);
 
   // Query Instagram account status
   const { data: igData, isLoading: igLoading } = useQuery({
     queryKey: ["/api/instagram/account"],
+    refetchOnWindowFocus: true,
+  });
+
+  // Query TikTok account status
+  const { data: tkData, isLoading: tkLoading } = useQuery({
+    queryKey: ["/api/tiktok/account"],
     refetchOnWindowFocus: true,
   });
 
@@ -106,6 +114,17 @@ export default function CreatorOnboarding() {
       }
     }
   }, [igData]);
+
+  // Sync TikTok query data to local state
+  useEffect(() => {
+    if (tkData && typeof tkData === 'object' && 'connected' in tkData) {
+      const data = tkData as { connected: boolean; account?: any };
+      setTiktokConnected(data.connected);
+      if (data.connected && data.account) {
+        setTiktokAccount(data.account);
+      }
+    }
+  }, [tkData]);
 
   // Restore form data from sessionStorage (survives OAuth redirect)
   useEffect(() => {
@@ -145,7 +164,7 @@ export default function CreatorOnboarding() {
     } else if (errorParam) {
       const message = params.get('message') || 'Erro ao conectar Instagram.';
       toast({
-        title: "Erro na conex\u00e3o",
+        title: "Erro na conexão",
         description: decodeURIComponent(message),
         variant: "destructive"
       });
@@ -195,12 +214,37 @@ export default function CreatorOnboarding() {
       queryClient.invalidateQueries({ queryKey: ["/api/instagram/account"] });
       toast({
         title: "Instagram desconectado",
-        description: "Voc\u00ea pode conectar outra conta.",
+        description: "Você pode conectar outra conta.",
       });
     } catch {
       toast({
         title: "Erro",
-        description: "N\u00e3o foi poss\u00edvel desconectar.",
+        description: "Não foi possível desconectar.",
+        variant: "destructive"
+      });
+    }
+  }, [queryClient, toast]);
+
+  const handleConnectTikTok = useCallback(() => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(formData));
+    sessionStorage.setItem(SESSION_STEP_KEY, String(currentStep));
+    window.location.href = '/api/tiktok/oauth/authorize?returnTo=/onboarding';
+  }, [formData, currentStep]);
+
+  const handleDisconnectTikTok = useCallback(async () => {
+    try {
+      await apiRequest('POST', '/api/tiktok/oauth/disconnect');
+      setTiktokConnected(false);
+      setTiktokAccount(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/tiktok/account"] });
+      toast({
+        title: "TikTok desconectado",
+        description: "Você pode conectar outra conta.",
+      });
+    } catch {
+      toast({
+        title: "Erro",
+        description: "Não foi possível desconectar.",
         variant: "destructive"
       });
     }
@@ -208,60 +252,56 @@ export default function CreatorOnboarding() {
 
   const validateCurrentStep = () => {
     if (currentStep === 0) {
-      // Step 0: Sobre Voc\u00ea - Bio e niche obrigat\u00f3rios
-      if (!formData.bio.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Conte um pouco sobre voc\u00ea.", variant: "destructive" });
-        return false;
-      }
+      // Step 0: Sobre Você - niche obrigatório, bio opcional
       if (formData.niche.length === 0) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Selecione pelo menos um nicho.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Selecione pelo menos um nicho.", variant: "destructive" });
         return false;
       }
     } else if (currentStep === 1) {
-      // Step 1: Conecte suas Redes - Instagram obrigat\u00f3rio (via OAuth)
+      // Step 1: Conecte suas Redes - Instagram obrigatório (via OAuth)
       if (!instagramConnected) {
-        toast({ title: "Instagram obrigat\u00f3rio", description: "Conecte seu Instagram para continuar.", variant: "destructive" });
+        toast({ title: "Instagram obrigatório", description: "Conecte seu Instagram para continuar.", variant: "destructive" });
         return false;
       }
     } else if (currentStep === 2) {
-      // Step 2: Dados Banc\u00e1rios - PIX obrigat\u00f3rio
+      // Step 2: Dados Bancários - PIX obrigatório
       if (!formData.pixKey.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha sua chave PIX.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha sua chave PIX.", variant: "destructive" });
         return false;
       }
     } else if (currentStep === 3) {
-      // Step 3: Seus Dados - Todos obrigat\u00f3rios exceto complemento
+      // Step 3: Seus Dados - Todos obrigatórios exceto complemento
       if (!formData.cpf.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha seu CPF/CNPJ.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha seu CPF/CNPJ.", variant: "destructive" });
         return false;
       }
       if (!formData.phone.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha seu telefone.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha seu telefone.", variant: "destructive" });
         return false;
       }
       const cepDigits = formData.cep.replace(/\D/g, '');
       if (cepDigits.length < 8) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha o CEP completo (8 d\u00edgitos).", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha o CEP completo (8 dígitos).", variant: "destructive" });
         return false;
       }
       if (!formData.street.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha a rua.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha a rua.", variant: "destructive" });
         return false;
       }
       if (!formData.number.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha o n\u00famero.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha o número.", variant: "destructive" });
         return false;
       }
       if (!formData.neighborhood.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha o bairro.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha o bairro.", variant: "destructive" });
         return false;
       }
       if (!formData.city.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha a cidade.", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha a cidade.", variant: "destructive" });
         return false;
       }
       if (!formData.state.trim()) {
-        toast({ title: "Campo obrigat\u00f3rio", description: "Preencha o estado (UF).", variant: "destructive" });
+        toast({ title: "Campo obrigatório", description: "Preencha o estado (UF).", variant: "destructive" });
         return false;
       }
     }
@@ -309,10 +349,15 @@ export default function CreatorOnboarding() {
           userData.instagramLastUpdated = new Date().toISOString();
         }
 
+        // Copy TikTok OAuth data to user fields
+        if (tiktokConnected && tiktokAccount) {
+          userData.tiktok = `@${tiktokAccount.uniqueId}`;
+        }
+
         await updateUser(userData);
         toast({
           title: "Perfil Completo!",
-          description: "Suas informa\u00e7\u00f5es foram salvas com sucesso.",
+          description: "Suas informações foram salvas com sucesso.",
         });
         window.location.href = '/feed';
       } catch {
@@ -366,8 +411,8 @@ export default function CreatorOnboarding() {
         }));
       } else {
         toast({
-          title: "CEP n\u00e3o encontrado",
-          description: "Por favor, preencha o endere\u00e7o manualmente.",
+          title: "CEP não encontrado",
+          description: "Por favor, preencha o endereço manualmente.",
           variant: "destructive"
         });
       }
@@ -437,7 +482,7 @@ export default function CreatorOnboarding() {
         <div className="space-y-8">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Configure seu Perfil</h1>
-            <p className="text-muted-foreground">Complete estas etapas para come\u00e7ar a se candidatar a campanhas.</p>
+            <p className="text-muted-foreground">Complete estas etapas para começar a se candidatar a campanhas.</p>
           </div>
 
           <div className="space-y-6 relative">
@@ -480,22 +525,22 @@ export default function CreatorOnboarding() {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.25 }}
                 >
-                  {/* Step 0 - Sobre Voc\u00ea */}
+                  {/* Step 0 - Sobre Você */}
                   {currentStep === 0 && (
                     <div className="space-y-6">
                       {/* Bio */}
                       <div className="space-y-2">
                         <Label className="text-base font-semibold">
-                          Conte um pouco sobre voc\u00ea <span className="text-red-500">*</span>
+                          Conte um pouco sobre você
                         </Label>
                         <Textarea
-                          placeholder="Descreva brevemente seu trabalho, estilo de conte\u00fado e p\u00fablico-alvo..."
+                          placeholder="Descreva brevemente seu trabalho, estilo de conteúdo e público-alvo..."
                           value={formData.bio}
                           onChange={(e) => updateField('bio', e.target.value)}
                           className="min-h-[100px] resize-none"
                           data-testid="input-bio"
                         />
-                        <p className="text-xs text-muted-foreground">Essa descri\u00e7\u00e3o ser\u00e1 vista pelas marcas ao visualizar seu perfil.</p>
+                        <p className="text-xs text-muted-foreground">Essa descrição será vista pelas marcas ao visualizar seu perfil.</p>
                       </div>
 
                       {/* Nichos */}
@@ -521,7 +566,7 @@ export default function CreatorOnboarding() {
                         <p className="text-xs text-muted-foreground">Selecione quantos quiser.</p>
                       </div>
 
-                      {/* Data Nascimento + G\u00eanero */}
+                      {/* Data Nascimento + Gênero */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Data de Nascimento</Label>
@@ -532,10 +577,10 @@ export default function CreatorOnboarding() {
                             data-testid="input-date-of-birth"
                             max={new Date().toISOString().split('T')[0]}
                           />
-                          <p className="text-xs text-muted-foreground">Voc\u00ea deve ter pelo menos 18 anos</p>
+                          <p className="text-xs text-muted-foreground">Você deve ter pelo menos 18 anos</p>
                         </div>
                         <div className="space-y-2">
-                          <Label>G\u00eanero</Label>
+                          <Label>Gênero</Label>
                           <select
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             value={formData.gender}
@@ -545,10 +590,27 @@ export default function CreatorOnboarding() {
                             <option value="">Selecione...</option>
                             <option value="masculino">Masculino</option>
                             <option value="feminino">Feminino</option>
-                            <option value="outro">Outro</option>
-                            <option value="prefiro_nao_informar">Prefiro n\u00e3o informar</option>
+                            <option value="prefiro_nao_informar">Prefiro não informar</option>
                           </select>
                         </div>
+                      </div>
+
+                      {/* Portfolio */}
+                      <div className="space-y-2">
+                        <Label>Link do Portfólio (opcional)</Label>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-purple-500/20 text-purple-400 rounded-lg">
+                            <Link2 className="w-5 h-5" />
+                          </div>
+                          <Input
+                            placeholder="https://seu-portfolio.com"
+                            value={formData.portfolioUrl}
+                            onChange={(e) => updateField('portfolioUrl', e.target.value)}
+                            data-testid="input-portfolio"
+                            type="url"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Link para seu portfólio, site pessoal ou Behance</p>
                       </div>
                     </div>
                   )}
@@ -569,7 +631,7 @@ export default function CreatorOnboarding() {
                             <h3 className="font-semibold text-white">Instagram</h3>
                             <p className="text-white/80 text-xs">Conecte para importar seus dados</p>
                           </div>
-                          <span className="text-xs font-medium text-white/90 bg-white/20 px-2 py-0.5 rounded-full">Obrigat\u00f3rio</span>
+                          <span className="text-xs font-medium text-white/90 bg-white/20 px-2 py-0.5 rounded-full">Obrigatório</span>
                         </div>
 
                         <div className="p-4">
@@ -613,7 +675,7 @@ export default function CreatorOnboarding() {
                                 </Button>
                               </div>
 
-                              {/* M\u00e9tricas */}
+                              {/* Métricas */}
                               <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -640,7 +702,7 @@ export default function CreatorOnboarding() {
                           ) : (
                             <div className="flex flex-col items-center gap-3 py-4">
                               <p className="text-sm text-muted-foreground text-center">
-                                Conecte sua conta do Instagram para importar automaticamente seu perfil e m\u00e9tricas.
+                                Conecte sua conta do Instagram para importar automaticamente seu perfil e métricas.
                               </p>
                               <Button
                                 onClick={handleConnectInstagram}
@@ -654,30 +716,98 @@ export default function CreatorOnboarding() {
                         </div>
                       </div>
 
-                      {/* TikTok Card - Em breve */}
-                      <div className="rounded-xl border-2 border-dashed border-border/60 opacity-60 overflow-hidden">
-                        <div className="bg-muted/30 p-4 flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center">
-                            <span className="font-bold text-sm text-white">Tk</span>
+                      {/* TikTok Card - OAuth */}
+                      <div className={`rounded-xl border-2 overflow-hidden transition-colors ${
+                        tiktokConnected ? 'border-green-500/50 bg-green-500/5' : 'border-border'
+                      }`}>
+                        <div className="bg-black p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.75a8.19 8.19 0 0 0 4.76 1.52V6.84a4.84 4.84 0 0 1-1-.15z" /></svg>
                           </div>
                           <div className="flex-1">
-                            <h3 className="font-semibold">TikTok</h3>
-                            <p className="text-muted-foreground text-xs">Integra\u00e7\u00e3o autom\u00e1tica</p>
+                            <h3 className="font-semibold text-white">TikTok</h3>
+                            <p className="text-white/80 text-xs">Conecte para importar seus dados</p>
                           </div>
-                          <Badge variant="secondary" className="text-xs">Em breve</Badge>
+                          <span className="text-xs font-medium text-white/90 bg-white/20 px-2 py-0.5 rounded-full">Opcional</span>
                         </div>
+
                         <div className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-black/10 rounded-lg">
-                              <span className="font-bold text-xs">Tk</span>
+                          {tkLoading ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                             </div>
-                            <Input
-                              placeholder="@tiktok.handle (opcional)"
-                              value={formData.tiktok}
-                              onChange={(e) => updateField('tiktok', e.target.value)}
-                              data-testid="input-tiktok"
-                            />
-                          </div>
+                          ) : tiktokConnected && tiktokAccount ? (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="space-y-4"
+                            >
+                              <div className="flex items-center gap-3">
+                                {tiktokAccount.avatarUrl ? (
+                                  <img
+                                    src={tiktokAccount.avatarUrl}
+                                    alt={`@${tiktokAccount.uniqueId}`}
+                                    className="w-12 h-12 rounded-full object-cover border-2 border-green-500/30"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white font-bold text-lg">
+                                    {tiktokAccount.uniqueId?.[0]?.toUpperCase() || 'T'}
+                                  </div>
+                                )}
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">@{tiktokAccount.uniqueId}</span>
+                                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">Conta conectada via OAuth</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={handleDisconnectTikTok}
+                                  className="text-red-400 hover:text-red-500 hover:bg-red-500/10 text-xs"
+                                >
+                                  Desconectar
+                                </Button>
+                              </div>
+
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                                className="grid grid-cols-3 gap-3"
+                              >
+                                <div className="bg-muted/50 rounded-lg p-3 text-center">
+                                  <Users className="w-4 h-4 text-primary mx-auto mb-1" />
+                                  <div className="text-lg font-bold">{(tiktokAccount.followers ?? 0).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground">Seguidores</div>
+                                </div>
+                                <div className="bg-muted/50 rounded-lg p-3 text-center">
+                                  <Users className="w-4 h-4 text-primary mx-auto mb-1" />
+                                  <div className="text-lg font-bold">{(tiktokAccount.hearts ?? 0).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground">Curtidas</div>
+                                </div>
+                                <div className="bg-muted/50 rounded-lg p-3 text-center">
+                                  <Image className="w-4 h-4 text-primary mx-auto mb-1" />
+                                  <div className="text-lg font-bold">{(tiktokAccount.videoCount ?? 0).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground">Vídeos</div>
+                                </div>
+                              </motion.div>
+                            </motion.div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-3 py-4">
+                              <p className="text-sm text-muted-foreground text-center">
+                                Conecte sua conta do TikTok para importar automaticamente seu perfil e métricas.
+                              </p>
+                              <Button
+                                onClick={handleConnectTikTok}
+                                className="bg-black hover:bg-gray-800 text-white"
+                              >
+                                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.75a8.19 8.19 0 0 0 4.76 1.52V6.84a4.84 4.84 0 0 1-1-.15z" /></svg>
+                                Conectar TikTok
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -689,7 +819,7 @@ export default function CreatorOnboarding() {
                           </div>
                           <div className="flex-1">
                             <h3 className="font-semibold">YouTube</h3>
-                            <p className="text-muted-foreground text-xs">Integra\u00e7\u00e3o autom\u00e1tica</p>
+                            <p className="text-muted-foreground text-xs">Integração automática</p>
                           </div>
                           <Badge variant="secondary" className="text-xs">Em breve</Badge>
                         </div>
@@ -708,33 +838,16 @@ export default function CreatorOnboarding() {
                         </div>
                       </div>
 
-                      {/* Portfolio */}
-                      <div className="space-y-2 pt-2 border-t border-border">
-                        <Label className="text-sm pt-4 block">Link do Portf\u00f3lio (opcional)</Label>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-purple-500/20 text-purple-400 rounded-lg">
-                            <Link2 className="w-5 h-5" />
-                          </div>
-                          <Input
-                            placeholder="https://seu-portfolio.com"
-                            value={formData.portfolioUrl}
-                            onChange={(e) => updateField('portfolioUrl', e.target.value)}
-                            data-testid="input-portfolio"
-                            type="url"
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Link para seu portf\u00f3lio, site pessoal ou Behance</p>
-                      </div>
                     </div>
                   )}
 
-                  {/* Step 2 - Dados Banc\u00e1rios */}
+                  {/* Step 2 - Dados Bancários */}
                   {currentStep === 2 && (
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label>Chave PIX <span className="text-red-500">*</span></Label>
                         <Input
-                          placeholder="CPF, Email, Telefone ou Chave Aleat\u00f3ria"
+                          placeholder="CPF, Email, Telefone ou Chave Aleatória"
                           value={formData.pixKey}
                           onChange={(e) => updateField('pixKey', e.target.value)}
                           data-testid="input-pix"
@@ -771,7 +884,7 @@ export default function CreatorOnboarding() {
                       </div>
 
                       <div className="space-y-2 pt-2">
-                        <Label>Endere\u00e7o <span className="text-red-500">*</span></Label>
+                        <Label>Endereço <span className="text-red-500">*</span></Label>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="col-span-1 relative">
                             <Input
@@ -783,7 +896,7 @@ export default function CreatorOnboarding() {
                             />
                             {isLoadingCep && <Loader2 className="w-4 h-4 absolute right-3 top-3 animate-spin text-muted-foreground" />}
                           </div>
-                          <p className="text-xs text-muted-foreground col-span-3 mt-1">Digite o CEP para buscar o endere\u00e7o.</p>
+                          <p className="text-xs text-muted-foreground col-span-3 mt-1">Digite o CEP para buscar o endereço.</p>
                           <div className="col-span-2">
                             <Input
                               placeholder="Rua *"
@@ -796,7 +909,7 @@ export default function CreatorOnboarding() {
                         <div className="grid grid-cols-4 gap-2 mt-2">
                           <div className="col-span-1">
                             <Input
-                              placeholder="N\u00famero *"
+                              placeholder="Número *"
                               value={formData.number}
                               onChange={(e) => updateField('number', e.target.value)}
                               data-testid="input-number"
@@ -855,7 +968,7 @@ export default function CreatorOnboarding() {
                     Salvando...
                   </>
                 ) : (
-                  currentStep === steps.length - 1 ? 'Concluir Cadastro' : 'Pr\u00f3ximo'
+                  currentStep === steps.length - 1 ? 'Concluir Cadastro' : 'Próximo'
                 )}
               </Button>
             </CardFooter>

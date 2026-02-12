@@ -1,5 +1,6 @@
 import { users, campaigns, applications, notifications, deliverables, problemReports, favoriteCreators, favoriteCompanies, campaignInvites, deliverableComments, campaignTemplates, companies, companyMembers, companyUserInvites, workflowStages, creatorPosts, creatorAnalyticsHistory, tiktokProfiles, creatorHashtags, postAiInsights, featureFlags, creatorLevels, creatorPoints, badges, creatorBadges, campaignCreatorStats, campaignCoupons, salesTracking, creatorCommissions, brandSettings, companyWallets, walletBoxes, creatorBalances, walletTransactions, paymentBatches, brandPrograms, brandRewards, brandTierConfigs, campaignPrizes, pointsLedger, brandCreatorTiers, campaignMetricSnapshots, rewardEntitlements, brandCreatorMemberships, communityInvites, campaignPointsRules, creatorDiscoveryProfiles, inspirations, inspirationCollections, inspirationCollectionItems, creatorSavedInspirations, campaignInspirations, creatorAddresses, conversations, convMessages, messageReads, tags, creatorTags, brandTags, campaignTags, type User, type InsertUser, type Campaign, type InsertCampaign, type Application, type InsertApplication, type Notification, type InsertNotification, type Deliverable, type InsertDeliverable, type ProblemReport, type InsertProblemReport, type FavoriteCreator, type InsertFavoriteCreator, type FavoriteCompany, type InsertFavoriteCompany, type CampaignInvite, type InsertCampaignInvite, type DeliverableComment, type InsertDeliverableComment, type Tag, type CampaignTemplate, type InsertCampaignTemplate, type Company, type InsertCompany, type CompanyMember, type InsertCompanyMember, type CompanyUserInvite, type InsertCompanyUserInvite, type Inspiration, type InsertInspiration, type InspirationCollection, type InsertInspirationCollection, type InspirationCollectionItem, type InsertInspirationCollectionItem, type CreatorSavedInspiration, type InsertCreatorSavedInspiration, type CampaignInspiration, type InsertCampaignInspiration, type WorkflowStage, type InsertWorkflowStage, type CreatorPost, type InsertCreatorPost, type CreatorAnalyticsHistory, type InsertCreatorAnalyticsHistory, type TiktokProfile, type InsertTiktokProfile, type CreatorHashtag, type InsertCreatorHashtag, type PostAiInsight, type InsertPostAiInsight, type FeatureFlag, type InsertFeatureFlag, type CreatorLevel, type BrandProgram, type InsertBrandProgram, type BrandReward, type InsertBrandReward, type BrandTierConfig, type InsertBrandTierConfig, type CampaignPrize, type InsertCampaignPrize, type PointsLedgerEntry, type InsertPointsLedgerEntry, type BrandCreatorTier, type InsertBrandCreatorTier, type CampaignMetricSnapshot, type InsertCampaignMetricSnapshot, type RewardEntitlement, type InsertRewardEntitlement, type InsertCreatorLevel, type CreatorPointsEntry, type InsertCreatorPoints, type CompanyWallet, type InsertCompanyWallet, type WalletBox, type InsertWalletBox, type CreatorBalance, type InsertCreatorBalance, type WalletTransaction, type InsertWalletTransaction, type PaymentBatch, type InsertPaymentBatch, type Badge, type InsertBadge, type BrandSettings, type InsertBrandSettings, type CreatorBadge, type InsertCreatorBadge, type CampaignCreatorStats, type InsertCampaignCreatorStats, type CampaignCoupon, type InsertCampaignCoupon, type SalesTracking, type CreatorCommission, type BrandCreatorMembership, type InsertBrandCreatorMembership, type CommunityInvite, type InsertCommunityInvite, type CampaignPointsRules, type InsertCampaignPointsRules, type CreatorDiscoveryProfile, type InsertCreatorDiscoveryProfile, courses, courseModules, courseLessons, creatorCourseProgress, creatorLessonProgress, type Course, type InsertCourse, type CourseModule, type InsertCourseModule, type CourseLesson, type InsertCourseLesson, type CreatorCourseProgress, type InsertCreatorCourseProgress, type CreatorLessonProgress, type InsertCreatorLessonProgress, type CreatorAddress, type InsertCreatorAddress, type Conversation, type InsertConversation, type ConvMessage, type InsertConvMessage, type MessageRead, type InsertMessageRead, type ConversationType } from "@shared/schema";
 import { calculateAge } from "@shared/utils";
+import { getRegionForState } from "@shared/constants";
 import { db } from "./db";
 import { eq, and, inArray, or, like, sql, desc, asc, ne, gte, lte, isNull, type SQL } from "drizzle-orm";
 import session from "express-session";
@@ -17,13 +18,15 @@ export interface IStorage {
   updateUser(id: number, user: Partial<User>): Promise<User>;
   deleteUser(id: number): Promise<void>;
   getCreators(): Promise<User[]>;
+  getCreatorsForMatching(campaign: Campaign): Promise<User[]>;
+  scoreCreatorForCampaign(creator: User, campaign: Campaign): { score: number; breakdown: Record<string, number>; reasons: string[] };
   
   // Campaign Operations
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   getCampaign(id: number): Promise<Campaign | undefined>;
   getCompanyCampaigns(companyId: number): Promise<Campaign[]>;
   getAllCampaigns(): Promise<Campaign[]>;
-  getQualifiedCampaignsForCreator(creatorId: number): Promise<Campaign[]>;
+  getQualifiedCampaignsForCreator(creatorId: number): Promise<(Campaign & { matchScore?: number })[]>;
   updateCampaign(id: number, data: Partial<Campaign>): Promise<Campaign>;
   updateCampaignStatus(id: number, status: 'open' | 'closed'): Promise<Campaign>;
   deleteCampaign(id: number): Promise<void>;
@@ -451,7 +454,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const [user] = await db.select().from(users).where(sql`lower(${users.email}) = lower(${email})`);
     return user;
   }
 
@@ -481,6 +484,41 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).where(eq(users.role, 'creator'));
   }
 
+  async getCreatorsForMatching(campaign: Campaign): Promise<User[]> {
+    const conditions: SQL[] = [eq(users.role, 'creator')];
+
+    // Pre-filter: must have at least niche or followers
+    conditions.push(
+      or(
+        sql`${users.niche} IS NOT NULL AND jsonb_array_length(${users.niche}) > 0`,
+        sql`${users.instagramFollowers} > 0`,
+        sql`${users.tiktokFollowers} > 0`,
+        sql`${users.youtubeSubscribers} > 0`
+      )!
+    );
+
+    // If campaign has target niches, prioritize overlapping creators (but don't exclude others)
+    if (campaign.targetNiche?.length) {
+      const nicheValues = campaign.targetNiche.map(n => n.toLowerCase());
+      // Order by niche match first, limit to 200
+      return await db.select().from(users)
+        .where(and(...conditions))
+        .orderBy(
+          sql`CASE WHEN EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(${users.niche}) AS n
+            WHERE lower(n) = ANY(${nicheValues})
+          ) THEN 0 ELSE 1 END`,
+          desc(sql`COALESCE(${users.instagramFollowers}, 0) + COALESCE(${users.tiktokFollowers}, 0)`)
+        )
+        .limit(200);
+    }
+
+    return await db.select().from(users)
+      .where(and(...conditions))
+      .orderBy(desc(sql`COALESCE(${users.instagramFollowers}, 0) + COALESCE(${users.tiktokFollowers}, 0)`))
+      .limit(200);
+  }
+
   // Campaign Operations
   async createCampaign(insertCampaign: InsertCampaign): Promise<Campaign> {
     const [campaign] = await db.insert(campaigns).values(insertCampaign).returning();
@@ -501,6 +539,107 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Helper function to check if a creator is qualified for a campaign
+  scoreCreatorForCampaign(creator: User, campaign: Campaign): { score: number; breakdown: Record<string, number>; reasons: string[] } {
+    const breakdown: Record<string, number> = {};
+    const reasons: string[] = [];
+    let score = 0;
+
+    // 1. Niche match (max 30 pts)
+    if (campaign.targetNiche?.length && creator.niche?.length) {
+      const matches = campaign.targetNiche.filter(cn =>
+        creator.niche!.some(crn => crn.toLowerCase() === cn.toLowerCase())
+      );
+      if (matches.length === campaign.targetNiche.length) {
+        breakdown.niche = 30;
+        reasons.push("Nicho compatível");
+      } else if (matches.length > 0) {
+        breakdown.niche = 15;
+        reasons.push("Nicho parcialmente compatível");
+      } else {
+        breakdown.niche = 0;
+      }
+    } else {
+      breakdown.niche = 15; // No niche filter = neutral
+    }
+    score += breakdown.niche;
+
+    // 2. Location match (max 15 pts)
+    if (campaign.targetRegions?.length && creator.state) {
+      const creatorRegion = getRegionForState(creator.state);
+      if (campaign.targetRegions.includes(creator.state)) {
+        breakdown.location = 15;
+        reasons.push(`Localização: ${creator.state}`);
+      } else if (creatorRegion && campaign.targetRegions.some(r => getRegionForState(r) === creatorRegion)) {
+        breakdown.location = 10;
+        reasons.push("Mesma região");
+      } else {
+        breakdown.location = 0;
+      }
+    } else {
+      breakdown.location = 10; // No region filter = neutral
+    }
+    score += breakdown.location;
+
+    // 3. Social metrics (max 25 pts)
+    const platforms = campaign.targetPlatforms || [];
+    let socialScore = 0;
+    let socialReasons: string[] = [];
+
+    const hasIG = platforms.length === 0 || platforms.includes("instagram");
+    const hasTK = platforms.includes("tiktok");
+    const hasYT = platforms.includes("youtube");
+
+    if (hasIG && creator.instagramFollowers) {
+      const f = creator.instagramFollowers;
+      const engRate = parseFloat(creator.instagramEngagementRate || "0");
+      if (f >= 100000) socialScore += 10;
+      else if (f >= 10000) socialScore += 7;
+      else if (f >= 1000) socialScore += 4;
+      else socialScore += 2;
+      if (engRate >= 5) socialScore += 5;
+      else if (engRate >= 2) socialScore += 3;
+      else if (engRate > 0) socialScore += 1;
+      socialReasons.push(`IG: ${f >= 1000 ? `${(f/1000).toFixed(0)}K` : f}`);
+    }
+
+    if (hasTK && creator.tiktokFollowers) {
+      const f = creator.tiktokFollowers;
+      if (f >= 100000) socialScore += 10;
+      else if (f >= 10000) socialScore += 7;
+      else if (f >= 1000) socialScore += 4;
+      else socialScore += 2;
+      socialReasons.push(`TK: ${f >= 1000 ? `${(f/1000).toFixed(0)}K` : f}`);
+    }
+
+    if (hasYT && creator.youtubeSubscribers) {
+      const f = creator.youtubeSubscribers;
+      if (f >= 100000) socialScore += 10;
+      else if (f >= 10000) socialScore += 7;
+      else if (f >= 1000) socialScore += 4;
+      else socialScore += 2;
+      socialReasons.push(`YT: ${f >= 1000 ? `${(f/1000).toFixed(0)}K` : f}`);
+    }
+
+    breakdown.social = Math.min(socialScore, 25);
+    if (socialReasons.length) reasons.push(socialReasons.join(", "));
+    score += breakdown.social;
+
+    // 4. Profile completeness (max 10 pts)
+    let completeness = 0;
+    if (creator.avatar || creator.instagramProfilePic) completeness += 2;
+    if (creator.bio) completeness += 2;
+    if (creator.portfolioUrl) completeness += 2;
+    if (creator.niche?.length) completeness += 2;
+    if (creator.city && creator.state) completeness += 2;
+    breakdown.completeness = Math.min(completeness, 10);
+    score += breakdown.completeness;
+
+    // 5. Bonus (reserved for V2 — history, past campaigns)
+    breakdown.bonus = 0;
+
+    return { score: Math.min(score, 100), breakdown, reasons };
+  }
+
   private isCreatorQualifiedForCampaign(creator: User, campaign: Campaign): boolean {
     if (creator.role !== 'creator') {
       return false;
@@ -600,7 +739,7 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
-  async getQualifiedCampaignsForCreator(creatorId: number): Promise<Campaign[]> {
+  async getQualifiedCampaignsForCreator(creatorId: number): Promise<(Campaign & { matchScore?: number })[]> {
     // Get creator profile
     const creator = await this.getUser(creatorId);
     if (!creator || creator.role !== 'creator') {
@@ -615,8 +754,14 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(campaigns.createdAt);
 
-    // Filter campaigns based on creator's profile using the helper function
-    return allCampaigns.filter(campaign => this.isCreatorQualifiedForCampaign(creator, campaign));
+    // Filter and score campaigns
+    return allCampaigns
+      .filter(campaign => this.isCreatorQualifiedForCampaign(creator, campaign))
+      .map(campaign => {
+        const { score } = this.scoreCreatorForCampaign(creator, campaign);
+        return { ...campaign, matchScore: score };
+      })
+      .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
   }
 
   async getQualifiedCreatorsForCampaign(campaign: Campaign): Promise<User[]> {

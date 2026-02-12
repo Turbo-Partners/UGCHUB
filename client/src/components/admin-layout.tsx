@@ -45,7 +45,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const isAdminUser = user?.email?.endsWith("@turbopartners.com") || user?.email === "rodrigoqs9@gmail.com" || user.role === 'admin';
+  const isAdminUser = user?.email?.endsWith("@turbopartners.com.br") || user?.email === "rodrigoqs9@gmail.com" || user.role === 'admin';
   
   if (!isAdminUser) {
     return <Redirect to="/" />;

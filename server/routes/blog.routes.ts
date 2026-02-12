@@ -4,6 +4,14 @@ import { db } from "../db";
 import { blogPosts, insertBlogPostSchema } from "@shared/schema";
 import OpenAI from "openai";
 
+function isAdminUser(req: Request): boolean {
+  if (!req.isAuthenticated?.()) return false;
+  const user = req.user as any;
+  if (!user) return false;
+  const email = user.email || '';
+  return user.role === 'admin' || email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+}
+
 export function registerBlogRoutes(app: Express): void {
 
   app.get("/api/blog", async (req: Request, res: Response) => {
@@ -44,7 +52,7 @@ export function registerBlogRoutes(app: Express): void {
   });
 
   app.get("/api/admin/blog/posts", async (req: Request, res: Response) => {
-    if (!req.isAuthenticated?.() || (req.user as any)?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdminUser(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
       const posts = await db.select().from(blogPosts).orderBy(desc(blogPosts.createdAt));
       res.json(posts);
@@ -55,7 +63,7 @@ export function registerBlogRoutes(app: Express): void {
   });
 
   app.post("/api/admin/blog/posts", async (req: Request, res: Response) => {
-    if (!req.isAuthenticated?.() || (req.user as any)?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdminUser(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
       const data = insertBlogPostSchema.parse(req.body);
       const [post] = await db.insert(blogPosts).values(data).returning();
@@ -70,7 +78,7 @@ export function registerBlogRoutes(app: Express): void {
   });
 
   app.patch("/api/admin/blog/posts/:id", async (req: Request, res: Response) => {
-    if (!req.isAuthenticated?.() || (req.user as any)?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdminUser(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
@@ -91,7 +99,7 @@ export function registerBlogRoutes(app: Express): void {
   });
 
   app.delete("/api/admin/blog/posts/:id", async (req: Request, res: Response) => {
-    if (!req.isAuthenticated?.() || (req.user as any)?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdminUser(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
@@ -105,7 +113,7 @@ export function registerBlogRoutes(app: Express): void {
   });
 
   app.post("/api/admin/blog/generate-seo", async (req: Request, res: Response) => {
-    if (!req.isAuthenticated?.() || (req.user as any)?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdminUser(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
       const { title, content, type } = req.body;
       if (!title || !content) return res.status(400).json({ error: "Title and content are required" });

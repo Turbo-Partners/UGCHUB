@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
-import { User, Instagram, Youtube, Linkedin, CreditCard, Building2, Save, Search, Edit2, Camera, Upload, Users, Image as ImageIcon, TrendingUp, Shield, RefreshCw, Hash, Calendar, Loader2, Link2, Heart, MessageCircle, ExternalLink, Facebook, Unlink, CheckCircle2 } from 'lucide-react';
+import { User, Instagram, Youtube, Linkedin, CreditCard, Building2, Save, Search, Edit2, Camera, Upload, Users, Image as ImageIcon, TrendingUp, Shield, RefreshCw, Hash, Calendar, Loader2, Link2, Heart, MessageCircle, ExternalLink, Facebook, Unlink, CheckCircle2, Lock, Plus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -19,14 +19,7 @@ import { format } from 'date-fns';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { getAvatarUrl } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useTikTokAccount, useDisconnectTikTok, useSyncTikTok } from "@/hooks/use-tiktok";
 
 interface SocialConnection {
   platform: string;
@@ -37,40 +30,6 @@ interface SocialConnection {
   profileUrl?: string;
 }
 
-const platformConfig = {
-  instagram: {
-    name: "Instagram",
-    icon: Instagram,
-    color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400",
-    iconColor: "text-white",
-    description: "Conecte seu perfil do Instagram para sincronizar métricas.",
-  },
-  tiktok: {
-    name: "TikTok",
-    icon: () => (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
-      </svg>
-    ),
-    color: "bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#000000]",
-    iconColor: "text-white",
-    description: "Conecte seu TikTok para acompanhar visualizações e engajamento.",
-  },
-  youtube: {
-    name: "YouTube",
-    icon: Youtube,
-    color: "bg-red-600",
-    iconColor: "text-white",
-    description: "Conecte seu canal do YouTube para sincronizar estatísticas.",
-  },
-  facebook: {
-    name: "Facebook",
-    icon: Facebook,
-    color: "bg-blue-600",
-    iconColor: "text-white",
-    description: "Conecte sua página do Facebook para gerenciar integrações.",
-  },
-};
 
 export default function CreatorProfile() {
   const { user, updateUser, isLoading } = useMarketplace();
@@ -108,9 +67,7 @@ export default function CreatorProfile() {
   });
 
   const [isLoadingCep, setIsLoadingCep] = useState(false);
-  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<keyof typeof platformConfig | null>(null);
-  const [usernameInput, setUsernameInput] = useState("");
+  const [isDisconnectingInstagram, setIsDisconnectingInstagram] = useState(false);
 
   const { data: connections = [] } = useQuery<SocialConnection[]>({
     queryKey: ["/api/creator/connections"],
@@ -128,57 +85,38 @@ export default function CreatorProfile() {
     },
   });
 
-  const connectMutation = useMutation({
-    mutationFn: async ({ platform, username }: { platform: string; username: string }) => {
-      const res = await fetch("/api/creator/connections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ platform, username }),
-      });
-      if (!res.ok) throw new Error("Falha ao conectar");
+  // Instagram OAuth account
+  const { data: instagramAccount } = useQuery<{ connected: boolean; account?: { username: string; profilePictureUrl?: string; followersCount?: number; followsCount?: number; mediaCount?: number; lastSyncAt?: string } }>({
+    queryKey: ["/api/instagram/account"],
+    queryFn: async () => {
+      const res = await fetch("/api/instagram/account", { credentials: "include" });
+      if (!res.ok) return { connected: false };
       return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/creator/connections"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Conectado!", description: "Sua conta foi conectada com sucesso." });
-      setConnectDialogOpen(false);
-      setUsernameInput("");
-    },
-    onError: () => {
-      toast({ title: "Erro", description: "Não foi possível conectar. Tente novamente.", variant: "destructive" });
     },
   });
 
-  const disconnectMutation = useMutation({
-    mutationFn: async (platform: string) => {
-      const res = await fetch(`/api/creator/connections/${platform}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Falha ao desconectar");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/creator/connections"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Desconectado", description: "Sua conta foi desconectada." });
-    },
-    onError: () => {
-      toast({ title: "Erro", description: "Não foi possível desconectar. Tente novamente.", variant: "destructive" });
-    },
-  });
+  // TikTok OAuth account
+  const { connected: tiktokConnected, account: tiktokAccount } = useTikTokAccount();
+  const tiktokDisconnect = useDisconnectTikTok();
+  const tiktokSync = useSyncTikTok();
 
-  const handleOpenConnect = (platform: keyof typeof platformConfig) => {
-    setSelectedPlatform(platform);
-    setUsernameInput("");
-    setConnectDialogOpen(true);
-  };
-
-  const handleConnect = () => {
-    if (!selectedPlatform || !usernameInput.trim()) return;
-    connectMutation.mutate({ platform: selectedPlatform, username: usernameInput.trim() });
+  const handleDisconnectInstagram = async () => {
+    setIsDisconnectingInstagram(true);
+    try {
+      const res = await fetch("/api/instagram/account", { method: "DELETE", credentials: "include" });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ["/api/instagram/account"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/creator/connections"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+        toast({ title: "Instagram desconectado", description: "Sua conta foi desconectada com sucesso." });
+      } else {
+        toast({ title: "Erro", description: "Não foi possível desconectar.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível desconectar.", variant: "destructive" });
+    } finally {
+      setIsDisconnectingInstagram(false);
+    }
   };
 
   const getConnection = (platform: string): SocialConnection | undefined => {
@@ -680,89 +618,242 @@ export default function CreatorProfile() {
             </TabsContent>
 
             <TabsContent value="connections">
-              <Card className="border-none shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
                     <Link2 className="h-5 w-5 text-primary" />
-                    Minhas Conexões
-                  </CardTitle>
-                  <CardDescription>
-                    Conecte suas redes sociais para sincronizar métricas e validar seu perfil.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {Object.entries(platformConfig).map(([key, config]) => {
-                    const connection = getConnection(key);
-                    const Icon = config.icon;
-                    const isConnected = connection?.connected;
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Minhas Conexões</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Conecte suas redes sociais para sincronizar métricas e validar seu perfil.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Instagram Card */}
+                  {(() => {
+                    const igOAuth = instagramAccount?.connected;
+                    const igFallback = getConnection("instagram");
+                    const igConnected = igOAuth || igFallback?.connected;
+                    const igUsername = instagramAccount?.account?.username || igFallback?.username;
 
                     return (
-                      <div
-                        key={key}
-                        className={`flex items-center justify-between p-4 rounded-lg border transition-all ${isConnected ? 'border-green-500/50 bg-green-50/50 dark:bg-green-950/20' : 'hover:bg-muted/50'}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg ${config.color} flex items-center justify-center`}>
-                            <Icon className={`h-5 w-5 ${config.iconColor}`} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{config.name}</span>
-                              {isConnected && (
-                                <Badge className="bg-green-500/10 text-green-600 border-green-500/30 text-xs">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Conectado
-                                </Badge>
-                              )}
+                      <Card className={`relative ${igConnected ? "border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-950/20" : "hover:border-primary/50 transition-colors"}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2.5 rounded-lg bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 text-pink-600">
+                              <Instagram className="h-5 w-5" />
                             </div>
-                            {isConnected && connection?.username ? (
-                              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                @{connection.username}
-                                {connection.profileUrl && (
-                                  <a href={connection.profileUrl} target="_blank" rel="noopener noreferrer">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium flex items-center gap-2">
+                                Instagram
+                                {igConnected && (
+                                  <Badge variant="outline" className="text-green-600 border-green-300 text-xs">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Conectado
+                                  </Badge>
+                                )}
+                              </p>
+                              {igConnected && igUsername ? (
+                                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                                  @{igUsername}
+                                  <a href={`https://instagram.com/${igUsername}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
                                     <ExternalLink className="h-3 w-3" />
                                   </a>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">{config.description}</span>
-                            )}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Conecte seu perfil do Instagram para sincronizar métricas.
+                                </p>
+                              )}
+                              {igConnected && instagramAccount?.account?.followersCount != null && (
+                                <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Users className="h-3 w-3" />
+                                    {instagramAccount.account.followersCount.toLocaleString()} seguidores
+                                  </span>
+                                  {instagramAccount.account.mediaCount != null && (
+                                    <span className="flex items-center gap-1">
+                                      <ImageIcon className="h-3 w-3" />
+                                      {instagramAccount.account.mediaCount.toLocaleString()} posts
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div>
-                          {isConnected ? (
+                          {igConnected ? (
+                            <div className="mt-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={handleDisconnectInstagram}
+                                disabled={isDisconnectingInstagram}
+                              >
+                                {isDisconnectingInstagram ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <Unlink className="h-4 w-4 mr-2" />
+                                )}
+                                Desconectar
+                              </Button>
+                            </div>
+                          ) : (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => disconnectMutation.mutate(key)}
-                              disabled={disconnectMutation.isPending}
-                              data-testid={`button-disconnect-${key}`}
+                              className="w-full mt-4"
+                              onClick={() => { window.location.href = "/api/auth/instagram/start?type=creator"; }}
                             >
-                              {disconnectMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <Unlink className="h-4 w-4 mr-2" />
-                                  Desconectar
-                                </>
-                              )}
+                              <Plus className="h-4 w-4 mr-2" />
+                              Conectar Instagram
                             </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* TikTok Card */}
+                  <Card className={`relative ${tiktokConnected ? "border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-950/20" : "hover:border-primary/50 transition-colors"}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 rounded-lg bg-gray-500/10 text-gray-900 dark:text-white">
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium flex items-center gap-2">
+                            TikTok
+                            {tiktokConnected && (
+                              <Badge variant="outline" className="text-green-600 border-green-300 text-xs">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Conectado
+                              </Badge>
+                            )}
+                          </p>
+                          {tiktokConnected && tiktokAccount ? (
+                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                              @{tiktokAccount.uniqueId}
+                              <a href={`https://tiktok.com/@${tiktokAccount.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </p>
                           ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenConnect(key as keyof typeof platformConfig)}
-                              data-testid={`button-connect-${key}`}
-                            >
-                              <Link2 className="h-4 w-4 mr-2" />
-                              Conectar
-                            </Button>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Conecte seu TikTok para acompanhar visualizações e engajamento.
+                            </p>
+                          )}
+                          {tiktokConnected && tiktokAccount && (
+                            <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {tiktokAccount.followers.toLocaleString()} seguidores
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Heart className="h-3 w-3" />
+                                {tiktokAccount.hearts.toLocaleString()} curtidas
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
+                      {tiktokConnected ? (
+                        <div className="mt-4 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => tiktokSync.mutate()}
+                            disabled={tiktokSync.isPending}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${tiktokSync.isPending ? 'animate-spin' : ''}`} />
+                            {tiktokSync.isPending ? "Sincronizando..." : "Sincronizar"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => tiktokDisconnect.mutate()}
+                            disabled={tiktokDisconnect.isPending}
+                          >
+                            {tiktokDisconnect.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Unlink className="h-4 w-4 mr-2" />
+                            )}
+                            Desconectar
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-4"
+                          onClick={() => { window.location.href = "/api/tiktok/oauth/authorize?returnTo=/settings"; }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Conectar TikTok
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* YouTube Card - Em breve */}
+                  <Card className="relative opacity-70 cursor-not-allowed">
+                    <div className="absolute top-2 right-2 z-10">
+                      <div className="p-1.5 rounded-full bg-muted">
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 rounded-lg bg-red-500/10 text-red-600 grayscale">
+                          <Youtube className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium flex items-center gap-2">
+                            YouTube
+                            <Badge variant="secondary" className="text-xs">Em breve</Badge>
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Integração em desenvolvimento
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Facebook Card - Em breve */}
+                  <Card className="relative opacity-70 cursor-not-allowed">
+                    <div className="absolute top-2 right-2 z-10">
+                      <div className="p-1.5 rounded-full bg-muted">
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 grayscale">
+                          <Facebook className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium flex items-center gap-2">
+                            Facebook
+                            <Badge variant="secondary" className="text-xs">Em breve</Badge>
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Integração em desenvolvimento
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="personal">
@@ -872,63 +963,6 @@ export default function CreatorProfile() {
         </div>
       </div>
 
-      <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {selectedPlatform && (
-                <>
-                  <div className={`w-8 h-8 rounded-lg ${platformConfig[selectedPlatform].color} flex items-center justify-center`}>
-                    {(() => {
-                      const Icon = platformConfig[selectedPlatform].icon;
-                      return <Icon className={`h-4 w-4 ${platformConfig[selectedPlatform].iconColor}`} />;
-                    })()}
-                  </div>
-                  Conectar {platformConfig[selectedPlatform].name}
-                </>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              Digite seu nome de usuário para conectar sua conta.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Nome de usuário</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
-                <Input
-                  id="username"
-                  placeholder="seu_usuario"
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
-                  className="pl-8"
-                  data-testid="input-connection-username"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConnectDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleConnect}
-              disabled={!usernameInput.trim() || connectMutation.isPending}
-              data-testid="button-confirm-connect"
-            >
-              {connectMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Link2 className="h-4 w-4 mr-2" />
-              )}
-              Conectar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

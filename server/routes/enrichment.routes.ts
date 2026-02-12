@@ -14,12 +14,17 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function isAdminByEmail(user: any): boolean {
+  const email = user?.email || '';
+  return user?.role === 'admin' || email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+}
+
 function requireCompanyOrAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user;
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  if (user.role !== 'company' && user.role !== 'admin') {
+  if (user.role !== 'company' && !isAdminByEmail(user)) {
     return res.status(403).json({ error: 'Company or admin access required' });
   }
   next();
@@ -50,7 +55,7 @@ router.post('/creator/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid creator ID' });
     }
 
-    if (user.role !== 'admin' && user.id !== creatorId) {
+    if (!isAdminByEmail(user) && user.id !== creatorId) {
       return res.status(403).json({ error: 'You can only enrich your own profile or be an admin' });
     }
 
@@ -82,7 +87,7 @@ router.post('/company/:id', requireCompanyOrAdmin, async (req: Request, res: Res
       return res.status(400).json({ error: 'Invalid company ID' });
     }
 
-    if (user.role !== 'admin') {
+    if (!isAdminByEmail(user)) {
       const [membership] = await db.select()
         .from(companyMembers)
         .where(and(
@@ -151,7 +156,7 @@ router.post('/my-company', requireCompanyOrAdmin, async (req: Request, res: Resp
       return res.status(400).json({ error: 'Company ID required' });
     }
 
-    if (user.role !== 'admin') {
+    if (!isAdminByEmail(user)) {
       const [membership] = await db.select()
         .from(companyMembers)
         .where(and(
@@ -193,7 +198,7 @@ router.post('/company/:id/ecommerce', requireCompanyOrAdmin, async (req: Request
       return res.status(400).json({ error: 'Invalid company ID' });
     }
 
-    if (user.role !== 'admin') {
+    if (!isAdminByEmail(user)) {
       const [membership] = await db.select()
         .from(companyMembers)
         .where(and(
@@ -231,7 +236,7 @@ router.post('/company/:id/website', requireCompanyOrAdmin, async (req: Request, 
       return res.status(400).json({ error: 'Invalid company ID' });
     }
 
-    if (user.role !== 'admin') {
+    if (!isAdminByEmail(user)) {
       const [membership] = await db.select()
         .from(companyMembers)
         .where(and(

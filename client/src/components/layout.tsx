@@ -109,7 +109,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isCompany = user?.role === "company";
   
   // Check if user has admin access (turbopartners.com domain or specific emails)
-  const isAdminUser = user?.email?.endsWith("@turbopartners.com") || user?.email === "rodrigoqs9@gmail.com";
+  const isAdminUser = user?.email?.endsWith("@turbopartners.com.br") || user?.email === "rodrigoqs9@gmail.com";
 
   // Fetch user's companies for selection modal (company users only)
   const { data: userCompanies = [] } = useQuery<CompanyMembership[]>({
@@ -401,6 +401,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ] : [];
 
   const companyFooterItems = [
+    {
+      href: "/company/brand-canvas",
+      label: "Brand Canvas",
+      icon: <Sparkles className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+      testid: "nav-brand-canvas",
+    },
     {
       href: "/company/settings",
       label: "Configurações",

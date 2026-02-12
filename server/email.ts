@@ -1,4 +1,6 @@
 import sgMail from '@sendgrid/mail';
+import fs from 'fs';
+import path from 'path';
 
 // Only set API key if it exists
 if (process.env.SENDGRID_API_KEY) {
@@ -7,6 +9,10 @@ if (process.env.SENDGRID_API_KEY) {
 } else {
   console.warn("[Email] SENDGRID_API_KEY not set. Email sending will be simulated.");
 }
+
+// Pre-load logo as base64 for inline email attachment
+const logoPath = path.join(process.cwd(), 'attached_assets', 'email-logo.png');
+const logoBase64 = fs.existsSync(logoPath) ? fs.readFileSync(logoPath).toString('base64') : '';
 
 export interface EmailOptions {
   to: string;
@@ -29,7 +35,7 @@ export async function sendEmail({ to, subject, text, html }: EmailOptions): Prom
     return true;
   }
 
-  const msg = {
+  const msg: any = {
     to,
     from: {
       email: fromEmail,
@@ -38,7 +44,22 @@ export async function sendEmail({ to, subject, text, html }: EmailOptions): Prom
     subject,
     text,
     html: html || text,
+    trackingSettings: {
+      clickTracking: { enable: false, enableText: false },
+      openTracking: { enable: false },
+    },
   };
+
+  // Attach logo inline via CID so it renders in all email clients
+  if (logoBase64) {
+    msg.attachments = [{
+      content: logoBase64,
+      filename: 'email-logo.png',
+      type: 'image/png',
+      disposition: 'inline',
+      content_id: 'email-logo',
+    }];
+  }
 
   try {
     const response = await sgMail.send(msg);
@@ -67,7 +88,13 @@ export function getBaseUrl(): string {
   } else if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
     return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.app`;
   }
-  return 'http://0.0.0.0:5000';
+  // Fallback to production domain so email links always work
+  return 'https://ugc.turbopartners.com.br';
+}
+
+// Always use production URL for email assets (images must be publicly accessible)
+function getEmailAssetsUrl(): string {
+  return 'https://ugc.turbopartners.com.br';
 }
 
 function getEmailTemplate(content: {
@@ -83,7 +110,7 @@ function getEmailTemplate(content: {
   customContent?: string;
 }): string {
   const baseUrl = getBaseUrl();
-  const logoUrl = `${baseUrl}/attached_assets/freepik__adjust__40499_1767050491683.png`;
+  const logoUrl = 'cid:email-logo';
   const year = new Date().getFullYear();
   
   const statsSection = content.showStats ? `
@@ -139,7 +166,7 @@ function getEmailTemplate(content: {
               <!-- Header with Logo -->
               <tr>
                 <td style="padding: 48px 48px 24px; text-align: center; background: linear-gradient(180deg, #1f1f23 0%, #18181b 100%); border-radius: 20px 20px 0 0;">
-                  <img src="${logoUrl}" alt="CreatorConnect" style="height: 52px; width: auto; display: inline-block;" />
+                  <img src="${logoUrl}" alt="CreatorConnect" width="200" height="45" style="height: 45px; width: 200px; display: block; margin: 0 auto;" />
                 </td>
               </tr>
               

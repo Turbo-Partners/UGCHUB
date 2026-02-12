@@ -35,6 +35,7 @@ const LandingPage = lazy(() => import("@/pages/landing"));
 const ParaCriadoresPage = lazy(() => import("@/pages/para-criadores"));
 const AuthPage = lazy(() => import("@/pages/auth"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const BrandCanvas = lazy(() => import("@/pages/company/brand-canvas"));
 const CompanyDashboard = lazy(() => import("@/pages/company/dashboard"));
 const CreateCampaign = lazy(() => import("@/pages/company/create-campaign"));
 const CampaignDetails = lazy(() => import("@/pages/company/campaign-details"));
@@ -262,6 +263,11 @@ function Router() {
                 <Route path="/company/settings/integrations">
                   <ProtectedRoute>
                     <CompanyIntegrations />
+                  </ProtectedRoute>
+                </Route>
+                <Route path="/company/brand-canvas">
+                  <ProtectedRoute>
+                    <BrandCanvas />
                   </ProtectedRoute>
                 </Route>
                 <Route path="/company/instagram-inbox">

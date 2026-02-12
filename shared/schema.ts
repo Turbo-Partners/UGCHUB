@@ -254,6 +254,137 @@ export const session = systemSchema.table("session", {
   expire: timestamp("expire").notNull(),
 });
 
+// Structured briefing for brand intelligence
+export interface StructuredBriefing {
+  whatWeDo?: string;
+  targetAudience?: string;
+  brandVoice?: string;
+  differentials?: string;
+  idealContentTypes?: string[];
+  avoidTopics?: string;
+  referenceCreators?: string;
+}
+
+export const structuredBriefingSchema = z.object({
+  whatWeDo: z.string().max(500).optional(),
+  targetAudience: z.string().max(500).optional(),
+  brandVoice: z.string().max(50).optional(),
+  differentials: z.string().max(500).optional(),
+  idealContentTypes: z.array(z.string().max(50)).max(20).optional(),
+  avoidTopics: z.string().max(500).optional(),
+  referenceCreators: z.string().max(500).optional(),
+}).nullable();
+
+// Brand Canvas — structured brand knowledge for UGC briefings
+export interface BrandCanvasAsset {
+  url: string;
+  type: 'image' | 'video';
+  source: 'upload' | 'instagram' | 'campaign';
+  caption?: string;
+  instagramPostId?: string;
+  campaignId?: number;
+}
+
+export interface BrandCanvasProduct {
+  name: string;
+  description?: string;
+  benefits?: string;
+  valueProposition?: string;
+}
+
+export interface BrandCanvasPersona {
+  name?: string;
+  ageRange?: string;
+  painPoints?: string[];
+  desires?: string[];
+  blockers?: string[];
+}
+
+export interface BrandCanvas {
+  // Tab 1 — Marca
+  aboutBrand?: string;
+  whatWeDo?: string;
+  differentials?: string;
+
+  // Tab 2 — Referências & Ativos
+  referenceCreators?: string;
+  competitorBrands?: string[];
+  referenceUrls?: string[];
+  brandAssets?: BrandCanvasAsset[];
+
+  // Tab 3 — Produtos
+  products?: BrandCanvasProduct[];
+
+  // Tab 4 — Público-Alvo
+  targetAudience?: string;
+  personas?: BrandCanvasPersona[];
+
+  // Tab 5 — Tom & Estilo
+  brandVoice?: string;
+  brandVoiceDescription?: string;
+  doList?: string[];
+  dontList?: string[];
+  idealContentTypes?: string[];
+  avoidTopics?: string;
+
+  // Tab 6 — Ganchos & Messaging
+  hooks?: string[];
+  keyMessages?: string[];
+  callToAction?: string;
+
+  // Metadata
+  lastUpdatedAt?: string;
+  completionScore?: number;
+}
+
+const brandCanvasAssetSchema = z.object({
+  url: z.string(),
+  type: z.enum(['image', 'video']),
+  source: z.enum(['upload', 'instagram', 'campaign']),
+  caption: z.string().max(300).optional(),
+  instagramPostId: z.string().optional(),
+  campaignId: z.number().optional(),
+});
+
+const brandCanvasProductSchema = z.object({
+  name: z.string().max(200),
+  description: z.string().max(500).optional(),
+  benefits: z.string().max(500).optional(),
+  valueProposition: z.string().max(500).optional(),
+});
+
+const brandCanvasPersonaSchema = z.object({
+  name: z.string().max(100).optional(),
+  ageRange: z.string().max(50).optional(),
+  painPoints: z.array(z.string().max(200)).max(10).optional(),
+  desires: z.array(z.string().max(200)).max(10).optional(),
+  blockers: z.array(z.string().max(200)).max(10).optional(),
+});
+
+export const brandCanvasSchema = z.object({
+  aboutBrand: z.string().max(500).optional(),
+  whatWeDo: z.string().max(500).optional(),
+  differentials: z.string().max(500).optional(),
+  referenceCreators: z.string().max(500).optional(),
+  competitorBrands: z.array(z.string().max(200)).max(20).optional(),
+  referenceUrls: z.array(z.string().url().max(500)).max(20).optional(),
+  brandAssets: z.array(brandCanvasAssetSchema).max(50).optional(),
+  products: z.array(brandCanvasProductSchema).max(30).optional(),
+  targetAudience: z.string().max(500).optional(),
+  personas: z.array(brandCanvasPersonaSchema).max(10).optional(),
+  brandVoice: z.string().max(50).optional(),
+  brandVoiceDescription: z.string().max(500).optional(),
+  doList: z.array(z.string().max(200)).max(20).optional(),
+  dontList: z.array(z.string().max(200)).max(20).optional(),
+  idealContentTypes: z.array(z.string().max(50)).max(20).optional(),
+  avoidTopics: z.string().max(500).optional(),
+  hooks: z.array(z.string().max(300)).max(20).optional(),
+  keyMessages: z.array(z.string().max(300)).max(20).optional(),
+  callToAction: z.string().max(300).optional(),
+  lastUpdatedAt: z.string().optional(),
+  completionScore: z.number().min(0).max(100).optional(),
+}).nullable();
+
 // Campaign reward types
 export interface CampaignReward {
   place: number;
@@ -571,6 +702,7 @@ export const companies = companySchema.table("companies", {
 
   // AI briefing
   companyBriefing: text("company_briefing"),
+  structuredBriefing: jsonb("structured_briefing").$type<StructuredBriefing>(),
 
   // Products/services from website
   websiteProducts: text("website_products").array(),
@@ -594,10 +726,16 @@ export const companies = companySchema.table("companies", {
   aiContextSummary: text("ai_context_summary"),
   aiContextLastUpdated: timestamp("ai_context_last_updated"),
   
+  // Company profile
+  annualRevenue: text("annual_revenue"),
+
   // Enrichment metadata
+  // Brand Canvas (structured brand knowledge for UGC briefings)
+  brandCanvas: jsonb("brand_canvas").$type<BrandCanvas>(),
+
   enrichmentScore: integer("enrichment_score"),
   lastEnrichedAt: timestamp("last_enriched_at"),
-  
+
   createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1882,7 +2020,7 @@ export const membershipStatusEnum = ["invited", "active", "suspended", "archived
 export type MembershipStatus = typeof membershipStatusEnum[number];
 
 // Membership source enum
-export const membershipSourceEnum = ["manual", "campaign", "invite"] as const;
+export const membershipSourceEnum = ["manual", "campaign", "invite", "self_request"] as const;
 export type MembershipSource = typeof membershipSourceEnum[number];
 
 // Invite status enum  

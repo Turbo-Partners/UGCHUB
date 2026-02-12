@@ -2,10 +2,10 @@ import { Express, Request, Response } from "express";
 import { instagramService, isMessageIncoming } from "../services/instagram";
 import crypto from "crypto";
 import { db } from "../db";
-import { 
-  integrationLogs, 
-  instagramTaggedPosts, 
-  notifications, 
+import {
+  integrationLogs,
+  instagramTaggedPosts,
+  notifications,
   companies,
   contactNotes,
   instagramAccounts,
@@ -18,6 +18,11 @@ import {
 import { eq, desc, and, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import { getContactByUsername } from "../services/instagram-contacts";
+
+function isAdminByEmail(user: any): boolean {
+  const email = user?.email || '';
+  return user?.role === 'admin' || email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -325,7 +330,7 @@ export function registerInstagramRoutes(app: Express) {
       redirectOnError = "/company/integrations";
     } else if (requestedType === "creator") {
       // User wants to connect as creator - must have creator role
-      if (user.role !== "creator" && user.role !== "admin") {
+      if (user.role !== "creator" && !isAdminByEmail(user)) {
         console.error("[Instagram OAuth] User tried to connect as creator but is not a creator");
         return res.redirect("/settings?error=not_creator&message=" + encodeURIComponent("Você precisa ser um criador para conectar como criador"));
       }
@@ -335,7 +340,7 @@ export function registerInstagramRoutes(app: Express) {
       // No explicit type - infer from user context
       // If user has active company selected, assume business
       // Otherwise, if user is a creator, assume creator
-      if (req.session.activeCompanyId && (user.role === "company" || user.role === "admin")) {
+      if (req.session.activeCompanyId && (user.role === "company" || isAdminByEmail(user))) {
         connectionType = "business";
         redirectOnError = "/company/integrations";
       } else if (user.role === "creator") {
@@ -1397,7 +1402,7 @@ export function registerInstagramRoutes(app: Express) {
     }
 
     const user = req.user!;
-    if (user.role !== "creator" && user.role !== "admin") {
+    if (user.role !== "creator" && !isAdminByEmail(user)) {
       return res.status(403).json({ error: "Only creators can access this endpoint" });
     }
 
@@ -1501,7 +1506,7 @@ export function registerInstagramRoutes(app: Express) {
     }
 
     const user = req.user!;
-    if (user.role !== "creator" && user.role !== "admin") {
+    if (user.role !== "creator" && !isAdminByEmail(user)) {
       return res.status(403).json({ error: "Only creators can access this endpoint" });
     }
 
@@ -1556,7 +1561,7 @@ export function registerInstagramRoutes(app: Express) {
     }
 
     const user = req.user!;
-    if (user.role !== "creator" && user.role !== "admin") {
+    if (user.role !== "creator" && !isAdminByEmail(user)) {
       return res.status(403).json({ error: "Only creators can access this endpoint" });
     }
 
@@ -1613,7 +1618,7 @@ export function registerInstagramRoutes(app: Express) {
     }
 
     const user = req.user!;
-    if (user.role !== "creator" && user.role !== "admin") {
+    if (user.role !== "creator" && !isAdminByEmail(user)) {
       return res.status(403).json({ error: "Only creators can access this endpoint" });
     }
 
@@ -1686,7 +1691,7 @@ export function registerInstagramRoutes(app: Express) {
     const requestingUser = req.user!;
 
     // Only companies/admins can view other creators' metrics
-    if (requestingUser.role !== "company" && requestingUser.role !== "admin") {
+    if (requestingUser.role !== "company" && !isAdminByEmail(requestingUser)) {
       return res.status(403).json({ error: "Only companies can view creator metrics" });
     }
 
@@ -1729,7 +1734,7 @@ export function registerInstagramRoutes(app: Express) {
     
     try {
       // For creators - sync their own account
-      if (user.role === "creator" || user.role === "admin") {
+      if (user.role === "creator" || isAdminByEmail(user)) {
         const account = await instagramService.getInstagramAccountByUserId(user.id);
         if (!account) {
           return res.status(404).json({ error: "Instagram account not connected" });
@@ -2686,7 +2691,7 @@ export function registerInstagramRoutes(app: Express) {
     }
 
     const user = req.user! as any;
-    if (user.role !== "company" && user.role !== "admin") {
+    if (user.role !== "company" && !isAdminByEmail(user)) {
       return res.status(403).json({ error: "Only company or admin users can sync" });
     }
 

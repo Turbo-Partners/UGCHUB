@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Store, Loader2, Building2, MapPin, Phone, Mail } from "lucide-react";
+import { Store, Loader2, Building2, MapPin, Phone, Mail, Globe, Instagram } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CreateCompanyModalProps {
@@ -29,6 +29,8 @@ interface CompanyFormData {
   cnpj: string;
   phone: string;
   email: string;
+  instagram: string;
+  website: string;
   cep: string;
   street: string;
   number: string;
@@ -47,6 +49,8 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
     cnpj: "",
     phone: "",
     email: "",
+    instagram: "",
+    website: "",
     cep: "",
     street: "",
     number: "",
@@ -144,6 +148,8 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
         cnpj: "",
         phone: "",
         email: "",
+        instagram: "",
+        website: "",
         cep: "",
         street: "",
         number: "",
@@ -178,10 +184,14 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
     const submitData: Partial<CompanyFormData> = {};
     Object.entries(formData).forEach(([key, value]) => {
       if (value.trim()) {
-        submitData[key as keyof CompanyFormData] = value.trim();
+        let val = value.trim();
+        if (key === "instagram") {
+          val = val.replace(/^@/, "");
+        }
+        submitData[key as keyof CompanyFormData] = val;
       }
     });
-    
+
     createCompanyMutation.mutate(submitData);
   };
 
@@ -290,6 +300,44 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
                       disabled={createCompanyMutation.isPending}
                       data-testid="input-company-email"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Globe className="h-4 w-4" />
+                  Redes Sociais e Site
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="instagram">Instagram</Label>
+                    <div className="relative">
+                      <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="instagram"
+                        className="pl-9"
+                        placeholder="@usuario"
+                        value={formData.instagram}
+                        onChange={(e) => handleInputChange("instagram", e.target.value)}
+                        disabled={createCompanyMutation.isPending}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website</Label>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="website"
+                        className="pl-9"
+                        placeholder="www.empresa.com.br"
+                        value={formData.website}
+                        onChange={(e) => handleInputChange("website", e.target.value)}
+                        disabled={createCompanyMutation.isPending}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

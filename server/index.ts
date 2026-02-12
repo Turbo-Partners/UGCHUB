@@ -106,5 +106,9 @@ app.use((req, res, next) => {
     // Auto-enrichment: event-driven (on profile save) + daily catch-up for missed profiles
     const { startDailyCatchUpJob } = await import("./jobs/autoEnrichmentJob");
     startDailyCatchUpJob();
+
+    // Company re-enrichment: weekly batch (Sundays 3 AM BRT)
+    const { initCompanyEnrichmentJob } = await import("./jobs/companyEnrichmentJob");
+    initCompanyEnrichmentJob();
   });
 })();

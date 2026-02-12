@@ -16,12 +16,17 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function isAdminByEmail(user: any): boolean {
+  const email = user?.email || '';
+  return user?.role === 'admin' || email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+}
+
 function requireCompanyOrAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user;
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  if (user.role !== 'company' && user.role !== 'admin') {
+  if (user.role !== 'company' && !isAdminByEmail(user)) {
     return res.status(403).json({ error: 'Company or admin access required' });
   }
   next();
@@ -644,7 +649,12 @@ router.post('/scrape/youtube-channel', async (req: Request, res: Response) => {
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user;
-  if (!user || user.role !== 'admin') {
+  if (!user) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const email = user.email || '';
+  const isAdmin = user.role === 'admin' || email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+  if (!isAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();

@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/sheet';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { 
-  ArrowLeft, 
+import {
+  ArrowLeft,
   Building2,
   Star,
   CheckCircle,
@@ -46,8 +46,27 @@ import {
   Check,
   Mail,
   CalendarDays,
-  BadgeCheck
+  BadgeCheck,
+  Palette,
+  Tag,
+  HelpCircle,
+  FileText,
+  Building,
+  ShoppingBag,
+  Phone,
+  Linkedin,
+  Facebook,
+  Twitter,
+  Youtube,
+  Target,
+  MessageSquare,
+  Shield,
+  Video,
+  Ban,
 } from 'lucide-react';
+import type { StructuredBriefing } from '@shared/schema';
+import { BRAND_VOICE_OPTIONS, IDEAL_CONTENT_TYPES } from '@shared/constants';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'wouter';
@@ -66,12 +85,35 @@ interface CompanyProfile {
   state: string | null;
   website: string | null;
   instagram: string | null;
+  tiktok: string | null;
   email: string | null;
   phone: string | null;
   cnpj: string | null;
   isFeatured: boolean;
   isDiscoverable: boolean;
   createdAt: string | null;
+  companyBriefing: string | null;
+  structuredBriefing: StructuredBriefing | null;
+  brandColors: string[] | null;
+  brandLogo: string | null;
+  websiteProducts: string[] | null;
+  // CNPJ enrichment
+  cnpjRazaoSocial: string | null;
+  cnpjSituacao: string | null;
+  cnpjAtividadePrincipal: string | null;
+  cnpjDataAbertura: string | null;
+  cnpjNaturezaJuridica: string | null;
+  // Website enrichment
+  websiteTitle: string | null;
+  websiteDescription: string | null;
+  websiteKeywords: string[] | null;
+  websiteSocialLinks: Record<string, string> | null;
+  websiteFaq: { question: string; answer: string }[] | null;
+  // E-commerce enrichment
+  ecommercePlatform: string | null;
+  ecommerceProductCount: number | null;
+  ecommerceCategories: string[] | null;
+  enrichmentScore: number | null;
 }
 
 interface InstagramMetrics {
@@ -223,6 +265,39 @@ export default function CompanyProfile() {
     staleTime: 1000 * 60 * 30,
   });
 
+  const { data: membershipStatus } = useQuery<{ isMember: boolean; status: string | null; joinedAt: string | null }>({
+    queryKey: [`/api/companies/${companyId}/membership-status`],
+    queryFn: async () => {
+      const res = await fetch(`/api/companies/${companyId}/membership-status`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return { isMember: false, status: null, joinedAt: null };
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  const requestMembershipMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/companies/${companyId}/request-membership`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Erro ao solicitar entrada');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/membership-status`] });
+      toast.success('Solicitação enviada! A marca irá avaliar seu pedido.');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const addFavoriteMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/favorite-companies/${companyId}`, {
@@ -321,6 +396,13 @@ export default function CompanyProfile() {
 
   const selectedCampaign = openCampaigns.find(c => c.id === selectedCampaignId);
 
+  // TikTok Icon component
+  const TikTokIcon = ({ className }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+    </svg>
+  );
+
   if ((!matchCompany && !matchBrand) || !companyId) return null;
 
   if (isLoading) {
@@ -387,26 +469,16 @@ export default function CompanyProfile() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
         </div>
 
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-          <Button 
-            variant="secondary" 
+        <div className="absolute top-4 left-4">
+          <Button
+            variant="secondary"
             size="sm"
-            onClick={() => window.history.back()} 
-            className="bg-white/90 hover:bg-white shadow-lg backdrop-blur-sm"
+            onClick={() => window.history.back()}
+            className="bg-black/40 hover:bg-black/60 text-white shadow-lg backdrop-blur-sm border-0"
             data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
-          </Button>
-          
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bg-white/90 hover:bg-white shadow-lg backdrop-blur-sm"
-            data-testid="button-open-brand-page"
-          >
-            Ver página da marca
-            <ExternalLink className="h-4 w-4 ml-2" />
           </Button>
         </div>
       </div>
@@ -451,10 +523,10 @@ export default function CompanyProfile() {
                       <p className="text-muted-foreground text-sm italic mb-2">"{stats.company.tagline}"</p>
                     )}
                     
-                    {marketTime && (
+                    {stats.company.createdAt && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                        <Clock className="h-3 w-3" />
-                        <span>{marketTime}</span>
+                        <CalendarDays className="h-3 w-3" />
+                        <span>Na plataforma desde {format(new Date(stats.company.createdAt), "MMMM 'de' yyyy", { locale: ptBR })}</span>
                         {stats.totalCollaborations > 0 && (
                           <>
                             <span className="text-muted-foreground/50">•</span>
@@ -464,9 +536,9 @@ export default function CompanyProfile() {
                       </div>
                     )}
                     
-                    <div className="flex flex-wrap items-center gap-4 mt-3">
-                      <Button 
-                        size="lg" 
+                    <div className="flex flex-wrap items-center gap-3 mt-3">
+                      <Button
+                        size="lg"
                         className="gap-2"
                         onClick={handleOpenApplySheet}
                         disabled={openCampaigns.length === 0}
@@ -475,11 +547,39 @@ export default function CompanyProfile() {
                         <Sparkles className="h-4 w-4" />
                         Solicitar Parceria
                       </Button>
-                      
+
+                      {membershipStatus?.isMember ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 py-1.5 px-3">
+                          <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Membro da comunidade
+                        </Badge>
+                      ) : membershipStatus?.status === "invited" ? (
+                        <Badge variant="secondary" className="py-1.5 px-3">
+                          <Clock className="h-3.5 w-3.5 mr-1.5" />
+                          Solicitação pendente
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="gap-2"
+                          onClick={() => requestMembershipMutation.mutate()}
+                          disabled={requestMembershipMutation.isPending}
+                          data-testid="button-join-community"
+                        >
+                          {requestMembershipMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Users className="h-4 w-4" />
+                          )}
+                          Entrar na Comunidade
+                        </Button>
+                      )}
+
                       <div className="flex items-center gap-2">
                         {stats.company.website && (
                           <Button variant="outline" size="icon" asChild>
-                            <a href={stats.company.website} target="_blank" rel="noopener noreferrer">
+                            <a href={stats.company.website.startsWith('http') ? stats.company.website : `https://${stats.company.website}`} target="_blank" rel="noopener noreferrer">
                               <Globe className="h-4 w-4" />
                             </a>
                           </Button>
@@ -533,120 +633,256 @@ export default function CompanyProfile() {
                   </div>
                 )}
 
-                {/* Seção Sobre a Empresa - Links e Informações */}
-                {(stats.company.website || stats.company.instagram || stats.company.email || stats.company.city || stats.company.cnpj) && (
-                  <>
-                    <Separator className="my-6" />
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        Informações da Empresa
-                      </h3>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {stats.company.website && (
-                          <a 
-                            href={stats.company.website.startsWith('http') ? stats.company.website : `https://${stats.company.website}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 p-3 rounded-lg border hover:border-primary/50 hover:bg-muted/50 transition-all group"
-                            data-testid="link-company-website"
-                          >
-                            <div className="p-2 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors">
-                              <Globe className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">Website</p>
-                              <p className="text-xs text-muted-foreground truncate" data-testid="text-company-website">{stats.company.website.replace(/^https?:\/\//, '')}</p>
-                            </div>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                          </a>
-                        )}
-                        
-                        {stats.company.instagram && (
-                          <a 
-                            href={`https://instagram.com/${stats.company.instagram.replace('@', '')}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 p-3 rounded-lg border hover:border-primary/50 hover:bg-muted/50 transition-all group"
-                            data-testid="link-company-instagram"
-                          >
-                            <div className="p-2 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 text-white group-hover:from-pink-600 group-hover:to-purple-700 transition-colors">
-                              <Instagram className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-medium">Instagram</p>
-                                {instagramMetrics?.isVerified && (
-                                  <BadgeCheck className="h-3.5 w-3.5 text-blue-500" />
+                {/* Seção Sobre a Empresa */}
+                {(() => {
+                  const sb = stats.company.structuredBriefing;
+                  const hasStructured = sb && (sb.whatWeDo || sb.targetAudience || sb.differentials || sb.brandVoice || sb.idealContentTypes?.length || sb.avoidTopics);
+                  const hasEnrichment = stats.company.companyBriefing || stats.company.description ||
+                    (stats.company.brandColors && stats.company.brandColors.length > 0) ||
+                    (stats.company.websiteProducts && stats.company.websiteProducts.length > 0) ||
+                    stats.company.cnpjRazaoSocial || stats.company.websiteSocialLinks ||
+                    stats.company.websiteKeywords || stats.company.websiteFaq ||
+                    stats.company.ecommercePlatform;
+
+                  if (!hasStructured && !hasEnrichment) return null;
+
+                  const brandVoiceLabel = sb?.brandVoice
+                    ? BRAND_VOICE_OPTIONS.find(o => o.value === sb.brandVoice)?.label || sb.brandVoice
+                    : null;
+
+                  return (
+                    <>
+                      <Separator className="my-6" />
+                      <div className="space-y-5">
+                        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          Sobre a Empresa
+                        </h3>
+
+                        {/* Briefing Estruturado da Marca */}
+                        {hasStructured && (
+                          <div className="space-y-4">
+                            {/* Sobre a Marca (whatWeDo) */}
+                            {sb.whatWeDo && (
+                              <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-200/30 dark:border-amber-800/30">
+                                <div className="flex items-start gap-3">
+                                  <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/15 to-orange-500/15 shrink-0 mt-0.5">
+                                    <FileText className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-semibold text-foreground mb-1">Sobre a Marca</h4>
+                                    <p className="text-sm text-muted-foreground leading-relaxed">{sb.whatWeDo}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Grid: Público-Alvo + Diferenciais */}
+                            {(sb.targetAudience || sb.differentials) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {sb.targetAudience && (
+                                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-200/30 dark:border-blue-800/30">
+                                    <div className="flex items-start gap-3">
+                                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/15 to-cyan-500/15 shrink-0 mt-0.5">
+                                        <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-semibold text-foreground mb-1">Público-Alvo</h4>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">{sb.targetAudience}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                {sb.differentials && (
+                                  <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/5 to-green-500/5 border border-emerald-200/30 dark:border-emerald-800/30">
+                                    <div className="flex items-start gap-3">
+                                      <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500/15 to-green-500/15 shrink-0 mt-0.5">
+                                        <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-semibold text-foreground mb-1">Diferenciais</h4>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">{sb.differentials}</p>
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground" data-testid="text-company-instagram">
-                                {stats.company.instagram.startsWith('@') ? stats.company.instagram : `@${stats.company.instagram}`}
-                                {instagramMetrics?.followersDisplay && (
-                                  <span className="ml-1 text-primary font-medium">• {instagramMetrics.followersDisplay} seguidores</span>
+                            )}
+
+                            {/* Tom de Voz + Conteúdo Ideal inline */}
+                            {(brandVoiceLabel || (sb.idealContentTypes && sb.idealContentTypes.length > 0)) && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                {brandVoiceLabel && (
+                                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-200/30 dark:border-violet-800/30">
+                                    <MessageSquare className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                                    <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Tom: {brandVoiceLabel}</span>
+                                  </div>
                                 )}
-                              </p>
-                            </div>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                          </a>
+                                {sb.idealContentTypes && sb.idealContentTypes.map(ct => {
+                                  const label = IDEAL_CONTENT_TYPES.find(o => o.value === ct)?.label || ct;
+                                  return (
+                                    <div key={ct} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-500/10 border border-pink-200/30 dark:border-pink-800/30">
+                                      <Video className="h-3.5 w-3.5 text-pink-600 dark:text-pink-400" />
+                                      <span className="text-xs font-medium text-pink-700 dark:text-pink-300">{label}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* O que Evitar */}
+                            {sb.avoidTopics && (
+                              <div className="p-3 rounded-lg bg-red-500/5 border border-red-200/20 dark:border-red-800/20 flex items-start gap-2.5">
+                                <Ban className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">Evitar</span>
+                                  <p className="text-sm text-muted-foreground mt-0.5">{sb.avoidTopics}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        
-                        {stats.company.email && (
-                          <a 
-                            href={`mailto:${stats.company.email}`}
-                            className="flex items-center gap-3 p-3 rounded-lg border hover:border-primary/50 hover:bg-muted/50 transition-all group"
-                            data-testid="link-company-email"
-                          >
-                            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 group-hover:bg-emerald-200 transition-colors">
-                              <Mail className="h-4 w-4" />
+
+                        {/* Fallback: briefing texto livre (se não tem estruturado) */}
+                        {!hasStructured && (stats.company.companyBriefing || stats.company.description) && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              Sobre
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">E-mail</p>
-                              <p className="text-xs text-muted-foreground truncate" data-testid="text-company-email">{stats.company.email}</p>
-                            </div>
-                          </a>
+                            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                              {stats.company.companyBriefing || stats.company.description}
+                            </p>
+                          </div>
                         )}
-                        
-                        {(stats.company.city || stats.company.state) && (
-                          <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30" data-testid="card-company-location">
-                            <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
-                              <MapPin className="h-4 w-4" />
+
+                        {/* Identidade Visual */}
+                        {((stats.company.brandColors && stats.company.brandColors.length > 0) || stats.company.brandLogo) && (
+                          <div className="p-4 rounded-xl bg-muted/30 space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Palette className="h-4 w-4 text-muted-foreground" />
+                              Identidade Visual
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">Localização</p>
-                              <p className="text-xs text-muted-foreground" data-testid="text-company-location">
-                                {[stats.company.city, stats.company.state].filter(Boolean).join(', ')}
-                              </p>
+                            <div className="flex items-center gap-4">
+                              {stats.company.brandColors && stats.company.brandColors.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                  {stats.company.brandColors.slice(0, 6).map((color, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="w-8 h-8 rounded-full ring-2 ring-background shadow-sm"
+                                      style={{ backgroundColor: color }}
+                                      title={color}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                              {stats.company.brandLogo && (
+                                <div className="bg-background rounded-lg p-2 inline-block shadow-sm">
+                                  <img src={stats.company.brandLogo} alt="Logo" className="h-8 max-w-[120px] object-contain" />
+                                </div>
+                              )}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Fatos-chave */}
+                        {(stats.company.cnpjDataAbertura || stats.company.cnpjAtividadePrincipal || stats.company.cnpjSituacao || stats.company.cnpjNaturezaJuridica) && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Building className="h-4 w-4 text-muted-foreground" />
+                              Fatos-chave
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              {stats.company.cnpjDataAbertura && (
+                                <FactItem label="Fundação" value={stats.company.cnpjDataAbertura} />
+                              )}
+                              {stats.company.cnpjAtividadePrincipal && (
+                                <FactItem label="Atividade" value={stats.company.cnpjAtividadePrincipal} />
+                              )}
+                              {stats.company.cnpjSituacao && (
+                                <div className="space-y-0.5">
+                                  <span className="text-xs text-muted-foreground">Situação</span>
+                                  <div>
+                                    <Badge variant={stats.company.cnpjSituacao === "ATIVA" ? "default" : "destructive"} className="text-xs">
+                                      {stats.company.cnpjSituacao}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              )}
+                              {stats.company.cnpjNaturezaJuridica && (
+                                <FactItem label="Natureza Jurídica" value={stats.company.cnpjNaturezaJuridica} />
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Produtos/Serviços */}
+                        {((stats.company.websiteProducts && stats.company.websiteProducts.length > 0) || stats.company.ecommercePlatform) && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                              Produtos/Serviços
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {stats.company.websiteProducts && stats.company.websiteProducts.slice(0, 10).map((product, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  <Package className="h-3 w-3 mr-1" />
+                                  {product}
+                                </Badge>
+                              ))}
+                            </div>
+                            {stats.company.ecommercePlatform && (
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                <span>Plataforma: <strong>{stats.company.ecommercePlatform}</strong></span>
+                                {stats.company.ecommerceProductCount != null && (
+                                  <span>{stats.company.ecommerceProductCount} produtos</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Palavras-chave */}
+                        {stats.company.websiteKeywords && stats.company.websiteKeywords.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Tag className="h-4 w-4 text-muted-foreground" />
+                              Palavras-chave
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {stats.company.websiteKeywords.slice(0, 15).map((kw, idx) => (
+                                <Badge key={idx} variant="outline" className="text-[11px] font-normal">
+                                  {kw}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* FAQ */}
+                        {stats.company.websiteFaq && stats.company.websiteFaq.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                              Perguntas Frequentes
+                            </div>
+                            <Accordion type="single" collapsible className="w-full">
+                              {stats.company.websiteFaq.map((item, idx) => (
+                                <AccordionItem key={idx} value={`faq-${idx}`}>
+                                  <AccordionTrigger className="text-sm text-left">{item.question}</AccordionTrigger>
+                                  <AccordionContent className="text-sm text-muted-foreground">
+                                    {item.answer}
+                                  </AccordionContent>
+                                </AccordionItem>
+                              ))}
+                            </Accordion>
                           </div>
                         )}
                       </div>
-                      
-                      {stats.company.cnpj && (
-                        <div className="sm:col-span-2 flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800" data-testid="badge-cnpj-verified">
-                          <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
-                            <BadgeCheck className="h-5 w-5" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300" data-testid="text-verified-label">Empresa Verificada</p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                              CNPJ cadastrado e verificado no sistema
-                            </p>
-                          </div>
-                          <ShieldCheck className="h-6 w-6 text-emerald-500/50" />
-                        </div>
-                      )}
-                      
-                      {stats.company.createdAt && (
-                        <div className="sm:col-span-2 flex items-center gap-2 text-xs text-muted-foreground pt-2" data-testid="text-member-since">
-                          <CalendarDays className="h-3 w-3" />
-                          <span>Na plataforma desde {format(new Date(stats.company.createdAt), "MMMM 'de' yyyy", { locale: ptBR })}</span>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                    </>
+                  );
+                })()}
+
               </CardContent>
             </Card>
 
@@ -825,64 +1061,68 @@ export default function CompanyProfile() {
           </div>
 
           <div className="space-y-4">
-            <Card className="sticky top-4">
+            <Card className="sticky top-4 shadow-lg">
               <CardContent className="p-6 space-y-6">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
-                    <ShieldCheck className="h-5 w-5" />
+                {/* Badge de Verificação */}
+                {stats.company.cnpj && (
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800">
+                    <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-lg shadow-md">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-emerald-700 dark:text-emerald-300">Marca Verificada</h3>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                        CNPJ verificado no sistema
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">Marca Verificada</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Esta marca foi verificada e está aceitando parcerias.
-                    </p>
-                  </div>
-                </div>
+                )}
 
                 <Separator />
 
+                {/* Estatísticas */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Estatísticas</h3>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="text-center p-3 bg-muted/50 rounded-lg">
+                    <div className="text-center p-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20">
                       <p className="text-2xl font-bold text-primary">{stats.activeCampaigns}</p>
-                      <p className="text-xs text-muted-foreground">Campanhas Ativas</p>
+                      <p className="text-xs text-muted-foreground mt-1">Campanhas Ativas</p>
                     </div>
-                    <div className="text-center p-3 bg-muted/50 rounded-lg">
-                      <p className="text-2xl font-bold text-primary">{stats.totalCollaborations}</p>
-                      <p className="text-xs text-muted-foreground">Colaborações</p>
+                    <div className="text-center p-4 bg-gradient-to-br from-violet-500/10 to-violet-500/5 rounded-xl border border-violet-500/20">
+                      <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">{stats.totalCollaborations}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Colaborações</p>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <span className="text-muted-foreground flex items-center gap-2">
-                        <Star className="h-4 w-4 text-amber-500" />
+                        <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
                         Avaliação
                       </span>
                       <span className="font-semibold flex items-center gap-1">
                         {stats.avgRating.toFixed(1)}
-                        <span className="text-muted-foreground font-normal">({stats.totalReviews})</span>
+                        <span className="text-muted-foreground font-normal text-xs">({stats.totalReviews})</span>
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <span className="text-muted-foreground flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-emerald-500" />
                         Taxa de Aceitação
                       </span>
                       <span className="font-semibold">{stats.acceptanceRate}</span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <span className="text-muted-foreground flex items-center gap-2">
                         <Clock className="h-4 w-4 text-blue-500" />
                         Tempo de Resposta
                       </span>
                       <span className="font-semibold">{stats.avgResponseTime}</span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <span className="text-muted-foreground flex items-center gap-2">
-                        <Heart className="h-4 w-4 text-red-500" />
+                        <Heart className="h-4 w-4 text-red-500 fill-red-500" />
                         Favoritos
                       </span>
                       <span className="font-semibold">{stats.favoriteCount}</span>
@@ -890,13 +1130,203 @@ export default function CompanyProfile() {
                   </div>
                 </div>
 
+                {/* Contato & Redes Sociais */}
+                {(stats.company.website || stats.company.email || stats.company.phone || stats.company.instagram || stats.company.tiktok || (stats.company.city || stats.company.state) || (stats.company.websiteSocialLinks && Object.keys(stats.company.websiteSocialLinks).length > 0)) && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Contato & Redes Sociais</h3>
+
+                      <div className="space-y-2">
+                        {stats.company.website && (
+                          <a
+                            href={stats.company.website.startsWith('http') ? stats.company.website : `https://${stats.company.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/70 transition-all group"
+                          >
+                            <div className="p-2 rounded-md bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+                              <Globe className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">
+                                {stats.company.website.replace(/^https?:\/\//, '')}
+                              </p>
+                            </div>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        )}
+
+                        {stats.company.email && (
+                          <a
+                            href={`mailto:${stats.company.email}`}
+                            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/70 transition-all group"
+                          >
+                            <div className="p-2 rounded-md bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                              <Mail className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">
+                                {stats.company.email}
+                              </p>
+                            </div>
+                          </a>
+                        )}
+
+                        {stats.company.phone && (
+                          <div className="flex items-center gap-3 p-2.5 rounded-lg">
+                            <div className="p-2 rounded-md bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400">
+                              <Phone className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{stats.company.phone}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {stats.company.instagram && (
+                          <a
+                            href={`https://instagram.com/${stats.company.instagram.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/70 transition-all group"
+                          >
+                            <div className="p-2 rounded-md bg-gradient-to-br from-pink-500 to-purple-600 text-white">
+                              <Instagram className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">
+                                  {stats.company.instagram.startsWith('@') ? stats.company.instagram : `@${stats.company.instagram}`}
+                                </p>
+                                {instagramMetrics?.isVerified && (
+                                  <BadgeCheck className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                                )}
+                              </div>
+                              {instagramMetrics?.followersDisplay && (
+                                <p className="text-[10px] text-muted-foreground">{instagramMetrics.followersDisplay} seguidores</p>
+                              )}
+                            </div>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        )}
+
+                        {stats.company.tiktok && (
+                          <a
+                            href={`https://tiktok.com/@${stats.company.tiktok.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/70 transition-all group"
+                          >
+                            <div className="p-2 rounded-md bg-black dark:bg-white/90 text-white dark:text-black">
+                              <TikTokIcon className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">
+                                {stats.company.tiktok.startsWith('@') ? stats.company.tiktok : `@${stats.company.tiktok}`}
+                              </p>
+                            </div>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        )}
+
+                        {/* Outras redes sociais do websiteSocialLinks */}
+                        {stats.company.websiteSocialLinks && Object.entries(stats.company.websiteSocialLinks).map(([platform, url]) => {
+                          // Pular se já mostramos acima
+                          if (platform === 'instagram' || platform === 'tiktok') return null;
+
+                          const getSocialIcon = () => {
+                            switch (platform.toLowerCase()) {
+                              case 'facebook': return <Facebook className="h-4 w-4" />;
+                              case 'linkedin': return <Linkedin className="h-4 w-4" />;
+                              case 'twitter': return <Twitter className="h-4 w-4" />;
+                              case 'youtube': return <Youtube className="h-4 w-4" />;
+                              default: return <Globe className="h-4 w-4" />;
+                            }
+                          };
+
+                          const getIconBg = () => {
+                            switch (platform.toLowerCase()) {
+                              case 'facebook': return 'bg-blue-600 text-white';
+                              case 'linkedin': return 'bg-blue-700 text-white';
+                              case 'twitter': return 'bg-sky-500 text-white';
+                              case 'youtube': return 'bg-red-600 text-white';
+                              default: return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+                            }
+                          };
+
+                          return (
+                            <a
+                              key={platform}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/70 transition-all group"
+                            >
+                              <div className={`p-2 rounded-md ${getIconBg()}`}>
+                                {getSocialIcon()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors capitalize">
+                                  {platform}
+                                </p>
+                              </div>
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </a>
+                          );
+                        })}
+
+                        {(stats.company.city || stats.company.state) && (
+                          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 mt-3">
+                            <div className="p-2 rounded-md bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400">
+                              <MapPin className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">
+                                {[stats.company.city, stats.company.state].filter(Boolean).join(', ')}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Instagram Metrics */}
+                {instagramMetrics?.exists && (instagramMetrics.followersDisplay || instagramMetrics.engagementDisplay) && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                        <Instagram className="h-4 w-4" />
+                        Métricas do Instagram
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {instagramMetrics.followersDisplay && (
+                          <div className="text-center p-3 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/20 dark:to-purple-950/20 rounded-lg border border-pink-200/50 dark:border-pink-800/30">
+                            <p className="text-lg font-bold text-primary">{instagramMetrics.followersDisplay}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Seguidores</p>
+                          </div>
+                        )}
+                        {instagramMetrics.engagementDisplay && (
+                          <div className="text-center p-3 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/20 dark:to-purple-950/20 rounded-lg border border-pink-200/50 dark:border-pink-800/30">
+                            <p className="text-lg font-bold text-primary">{instagramMetrics.engagementDisplay}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Engajamento</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {stats.topCreators.length > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-3">
                       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Top Criadores</h3>
                       <div className="space-y-2">
-                        {stats.topCreators.slice(0, 4).map((creator, idx) => (
+                        {stats.topCreators.slice(0, 4).map((creator) => (
                           <div key={creator.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                             <Avatar className="h-9 w-9">
                               <AvatarImage src={getAvatarUrl(creator.avatar)} />
@@ -921,20 +1351,20 @@ export default function CompanyProfile() {
                   </>
                 )}
 
-                {openCampaigns.length > 0 ? (
-                  <Button 
-                    className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all" 
-                    size="lg"
-                    onClick={handleOpenApplySheet}
-                    data-testid="button-apply-sidebar"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Solicitar Parceria
-                  </Button>
-                ) : (
-                  <div className="space-y-2">
-                    <Button 
-                      className="w-full" 
+                <div className="space-y-2">
+                  {openCampaigns.length > 0 ? (
+                    <Button
+                      className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all"
+                      size="lg"
+                      onClick={handleOpenApplySheet}
+                      data-testid="button-apply-sidebar"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Solicitar Parceria
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full"
                       size="lg"
                       variant="secondary"
                       disabled
@@ -943,26 +1373,44 @@ export default function CompanyProfile() {
                       <Briefcase className="h-4 w-4 mr-2" />
                       Sem campanhas abertas
                     </Button>
-                    <Button 
-                      className="w-full" 
+                  )}
+
+                  {!membershipStatus?.isMember && membershipStatus?.status !== "invited" && (
+                    <Button
+                      className="w-full"
                       variant="outline"
-                      onClick={handleToggleFavorite}
-                      disabled={isFavoriteLoading}
+                      size="lg"
+                      onClick={() => requestMembershipMutation.mutate()}
+                      disabled={requestMembershipMutation.isPending}
                     >
-                      {isFavorite ? (
-                        <>
-                          <Heart className="h-4 w-4 mr-2 fill-current text-red-500" />
-                          Favoritada
-                        </>
+                      {requestMembershipMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
-                        <>
-                          <Heart className="h-4 w-4 mr-2" />
-                          Adicionar aos favoritos
-                        </>
+                        <Users className="h-4 w-4 mr-2" />
                       )}
+                      Entrar na Comunidade
                     </Button>
-                  </div>
-                )}
+                  )}
+
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={handleToggleFavorite}
+                    disabled={isFavoriteLoading}
+                  >
+                    {isFavorite ? (
+                      <>
+                        <Heart className="h-4 w-4 mr-2 fill-current text-red-500" />
+                        Favoritada
+                      </>
+                    ) : (
+                      <>
+                        <Heart className="h-4 w-4 mr-2" />
+                        Adicionar aos favoritos
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -1168,6 +1616,15 @@ export default function CompanyProfile() {
           </div>
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+function FactItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <p className="text-sm font-medium leading-snug">{value}</p>
     </div>
   );
 }

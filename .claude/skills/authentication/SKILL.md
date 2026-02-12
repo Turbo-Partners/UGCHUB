@@ -79,7 +79,7 @@ if (!req.isAuthenticated() || !["company", "admin"].includes(req.user!.role)) {
 
 // Admin: verificação por role E email domain
 const isAdminByRole = req.user?.role === "admin";
-const isAdminByEmail = email.endsWith("@turbopartners.com") || email === "rodrigoqs9@gmail.com";
+const isAdminByEmail = email.endsWith("@turbopartners.com.br") || email === "rodrigoqs9@gmail.com";
 if (!isAdminByRole && !isAdminByEmail) return res.sendStatus(403);
 ```
 

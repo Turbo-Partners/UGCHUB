@@ -182,6 +182,7 @@ const BUDGET_RANGES = [
 ];
 
 const SORT_OPTIONS = [
+  { value: "relevance", label: "Relevância", icon: Sparkles },
   { value: "recent", label: "Mais recentes", icon: Clock },
   { value: "budget_high", label: "Maior orçamento", icon: DollarSign },
   { value: "budget_low", label: "Menor orçamento", icon: DollarSign },
@@ -281,7 +282,7 @@ export default function CreatorFeed() {
   const [nicheFilter, setNicheFilter] = useState<string>("all");
   const [budgetFilter, setBudgetFilter] = useState<string>("all");
   const [deadlineFilter, setDeadlineFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("recent");
+  const [sortBy, setSortBy] = useState<string>("relevance");
   const [applyingToCampaignId, setApplyingToCampaignId] = useState<
     number | null
   >(null);
@@ -438,6 +439,8 @@ export default function CreatorFeed() {
     // Sort campaigns
     filtered.sort((a, b) => {
       switch (sortBy) {
+        case "relevance":
+          return ((b as any).matchScore || 0) - ((a as any).matchScore || 0);
         case "budget_high":
           return (Number(b.budget) || 0) - (Number(a.budget) || 0);
         case "budget_low":
@@ -913,12 +916,27 @@ export default function CreatorFeed() {
               >
                 <CardHeader>
                   <div className="flex justify-between items-start mb-2">
-                    <Badge
-                      variant="secondary"
-                      className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                    >
-                      Ativa
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        variant="secondary"
+                        className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                      >
+                        Ativa
+                      </Badge>
+                      {(campaign as any).matchScore > 50 && (
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs ${
+                            (campaign as any).matchScore >= 80
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          }`}
+                        >
+                          <Sparkles className="h-3 w-3 mr-0.5" />
+                          {(campaign as any).matchScore}% match
+                        </Badge>
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground font-mono">
                       {campaign.createdAt
                         ? format(new Date(campaign.createdAt), "dd MMM")

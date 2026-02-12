@@ -33,6 +33,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { OnboardingIntegrations } from "@/components/onboarding-integrations";
 import type { Company, CompanyMember } from "@shared/schema";
+import { ANNUAL_REVENUE_OPTIONS } from "@shared/constants";
 
 type ActiveCompanyResponse = CompanyMember & { company: Company };
 
@@ -45,6 +46,7 @@ interface FormData {
   phone: string;
   email: string;
   website: string;
+  annualRevenue: string;
   cep: string;
   street: string;
   number: string;
@@ -136,6 +138,7 @@ export default function CompanyOnboarding() {
     phone: "",
     email: "",
     website: "",
+    annualRevenue: "",
     cep: "",
     street: "",
     number: "",
@@ -203,6 +206,7 @@ export default function CompanyOnboarding() {
         phone: company.phone || "",
         email: company.email || "",
         website: company.website || "",
+        annualRevenue: company.annualRevenue || "",
         cep: company.cep || "",
         street: company.street || "",
         number: company.number || "",
@@ -632,7 +636,58 @@ export default function CompanyOnboarding() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="instagram" className="flex items-center gap-1">
+                          <Instagram className="w-3.5 h-3.5" />
+                          @Instagram
+                        </Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                          <Input
+                            id="instagram"
+                            value={formData.instagram.replace(/^@/, "")}
+                            onChange={(e) => setFormData(prev => ({ ...prev, instagram: e.target.value.replace(/^@/, "") }))}
+                            placeholder="suaempresa"
+                            className="pl-7"
+                            data-testid="input-instagram"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="website">Website</Label>
+                        <Input
+                          id="website"
+                          value={formData.website}
+                          onChange={(e) => handleInputChange("website", e.target.value)}
+                          placeholder="https://suaempresa.com"
+                          data-testid="input-website"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="phone">Telefone</Label>
+                        <Input
+                          id="phone"
+                          value={formData.phone}
+                          onChange={(e) => handleInputChange("phone", e.target.value)}
+                          placeholder="(00) 00000-0000"
+                          data-testid="input-phone"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email">E-mail</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => handleInputChange("email", e.target.value)}
+                          placeholder="contato@empresa.com"
+                          data-testid="input-email"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="tradeName">Razão Social</Label>
                         <Input
@@ -661,56 +716,23 @@ export default function CompanyOnboarding() {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="instagram" className="flex items-center gap-1">
-                          <Instagram className="w-3.5 h-3.5" />
-                          @Instagram
-                        </Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
-                          <Input
-                            id="instagram"
-                            value={formData.instagram.replace(/^@/, "")}
-                            onChange={(e) => setFormData(prev => ({ ...prev, instagram: e.target.value.replace(/^@/, "") }))}
-                            placeholder="suaempresa"
-                            className="pl-7"
-                            data-testid="input-instagram"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Telefone</Label>
-                        <Input
-                          id="phone"
-                          value={formData.phone}
-                          onChange={(e) => handleInputChange("phone", e.target.value)}
-                          placeholder="(00) 00000-0000"
-                          data-testid="input-phone"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">E-mail</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => handleInputChange("email", e.target.value)}
-                          placeholder="contato@empresa.com"
-                          data-testid="input-email"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="website">Website</Label>
-                        <Input
-                          id="website"
-                          value={formData.website}
-                          onChange={(e) => handleInputChange("website", e.target.value)}
-                          placeholder="https://suaempresa.com"
-                          data-testid="input-website"
-                        />
+                        <Label htmlFor="annualRevenue">Faturamento Anual</Label>
+                        <Select
+                          value={formData.annualRevenue}
+                          onValueChange={(value) => setFormData({ ...formData, annualRevenue: value })}
+                        >
+                          <SelectTrigger data-testid="select-annual-revenue">
+                            <SelectValue placeholder="Selecionar faturamento" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ANNUAL_REVENUE_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </CardContent>

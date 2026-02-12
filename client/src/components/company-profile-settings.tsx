@@ -6,14 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Building2, MapPin, Phone, Save, Loader2, Upload, Globe, Image, Eye, Compass, Instagram, RefreshCw, Sparkles, Palette, FileText, Building, ShoppingBag, ExternalLink, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Building2, MapPin, Save, Loader2, Upload, Globe, Image, Eye, Compass, Instagram, Sparkles, ShoppingCart, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ANNUAL_REVENUE_OPTIONS } from "@shared/constants";
 
 interface CompanyData {
   id: number;
@@ -37,12 +34,22 @@ interface CompanyData {
   coverPhoto: string | null;
   category: string | null;
   tagline: string | null;
+  annualRevenue: string | null;
   isDiscoverable: boolean;
   isFeatured: boolean;
   // Enrichment fields
   brandColors: string[] | null;
   brandLogo: string | null;
   companyBriefing: string | null;
+  structuredBriefing: {
+    whatWeDo?: string;
+    targetAudience?: string;
+    brandVoice?: string;
+    differentials?: string;
+    idealContentTypes?: string[];
+    avoidTopics?: string;
+    referenceCreators?: string;
+  } | null;
   aiContextSummary: string | null;
   websiteProducts: string[] | null;
   enrichmentScore: number | null;
@@ -83,6 +90,7 @@ interface FormData {
   email: string;
   website: string;
   instagram: string;
+  annualRevenue: string;
   cep: string;
   street: string;
   number: string;
@@ -150,6 +158,7 @@ export function CompanyProfileSettings() {
     email: "",
     website: "",
     instagram: "",
+    annualRevenue: "",
     cep: "",
     street: "",
     number: "",
@@ -186,6 +195,7 @@ export function CompanyProfileSettings() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formInitializedRef = useRef(false);
 
   const { data: activeCompany, isLoading } = useQuery<ActiveCompanyResponse>({
     queryKey: ["/api/active-company"],
@@ -199,7 +209,8 @@ export function CompanyProfileSettings() {
   const company = activeCompany?.company;
 
   useEffect(() => {
-    if (company) {
+    if (company && !formInitializedRef.current) {
+      formInitializedRef.current = true;
       setFormData({
         name: company.name || "",
         tradeName: company.tradeName || "",
@@ -209,6 +220,7 @@ export function CompanyProfileSettings() {
         email: company.email || "",
         website: company.website || "",
         instagram: company.instagram || "",
+        annualRevenue: company.annualRevenue || "",
         cep: company.cep || "",
         street: company.street || "",
         number: company.number || "",
@@ -234,7 +246,15 @@ export function CompanyProfileSettings() {
       fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${formData.state}/municipios?orderBy=nome`)
         .then(res => res.json())
         .then((data: Array<{ nome: string }>) => {
-          setCities(data.map(c => c.nome));
+          const cityNames = data.map(c => c.nome);
+          setCities(cityNames);
+          // Match existing city value case-insensitively with IBGE list
+          if (formData.city) {
+            const match = cityNames.find(c => c.toLowerCase() === formData.city.toLowerCase());
+            if (match && match !== formData.city) {
+              setFormData(prev => ({ ...prev, city: match }));
+            }
+          }
         })
         .catch(() => {
           setCities([]);
@@ -462,9 +482,6 @@ export function CompanyProfileSettings() {
           
           toast.success("Dados enriquecidos!", { description });
 
-          // Refresh company data to show enriched CNPJ fields in Intelligence section
-          queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
-
           // Trigger automatic description generation if we have enough data
           if (!formData.description && (data.data.razaoSocial || updates.category)) {
             setTimeout(() => {
@@ -573,9 +590,6 @@ export function CompanyProfileSettings() {
               ? `${fieldsUpdated} campo(s) preenchido(s) automaticamente.`
               : "Análise completa, mas os campos já estavam preenchidos.",
           });
-
-          // Refresh company data to show enriched fields in Intelligence section
-          queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
 
           // Trigger automatic description generation with briefing if description is empty
           if (!formData.description && !updates.description && (data.data.description || data.data.products)) {
@@ -751,10 +765,6 @@ export function CompanyProfileSettings() {
               description: "Revise os textos e faça ajustes se necessário."
             });
           }
-          // Refresh to show briefing in Intelligence section
-          if (data.data.briefing) {
-            queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
-          }
         }
       } else {
         console.error("Erro ao gerar descrição");
@@ -817,6 +827,14 @@ export function CompanyProfileSettings() {
       toast.success("Dados atualizados!");
       queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      // Trigger enrichment after save if fields have values that weren't enriched yet
+      const cnpjDigits = formData.cnpj.replace(/\D/g, "");
+      if (cnpjDigits.length === 14 && lastEnrichedCnpjRef.current !== cnpjDigits) {
+        setTimeout(() => enrichCnpj(false), 300);
+      }
+      if (formData.website && lastEnrichedWebsiteRef.current !== formData.website) {
+        setTimeout(() => enrichWebsite(false), 600);
+      }
     },
     onError: (error: Error) => {
       toast.error("Erro ao salvar", { description: error.message });
@@ -960,23 +978,16 @@ export function CompanyProfileSettings() {
                   <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Nome fantasia" data-testid="input-name" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tradeName">Razão Social</Label>
-                  <Input id="tradeName" value={formData.tradeName} onChange={(e) => handleInputChange("tradeName", e.target.value)} placeholder="Razão social" data-testid="input-tradename" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
                   <Label htmlFor="cnpj">CNPJ</Label>
                   <div className="relative">
-                    <Input 
-                      id="cnpj" 
-                      value={formData.cnpj} 
-                      onChange={(e) => handleInputChange("cnpj", e.target.value)} 
+                    <Input
+                      id="cnpj"
+                      value={formData.cnpj}
+                      onChange={(e) => handleInputChange("cnpj", e.target.value)}
                       onBlur={handleCnpjBlur}
-                      placeholder="00.000.000/0001-00" 
+                      placeholder="00.000.000/0001-00"
                       className={cnpjError ? "border-red-500 pr-10" : "pr-10"}
-                      data-testid="input-cnpj" 
+                      data-testid="input-cnpj"
                     />
                     {isEnrichingCnpj && (
                       <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
@@ -986,6 +997,82 @@ export function CompanyProfileSettings() {
                   {isEnrichingCnpj && (
                     <p className="text-xs text-muted-foreground">Buscando dados na Receita Federal...</p>
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="instagram">Instagram</Label>
+                  <div className="relative">
+                    <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="instagram"
+                      value={formData.instagram}
+                      onChange={(e) => handleInputChange("instagram", e.target.value)}
+                      onBlur={handleInstagramBlur}
+                      placeholder="@suaempresa"
+                      className={`pl-9 pr-10 ${instagramData?.exists === false ? "border-red-500" : instagramData?.exists ? "border-green-500" : ""}`}
+                      data-testid="input-instagram"
+                    />
+                    {isEnrichingInstagram && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {isEnrichingInstagram && (
+                    <p className="text-xs text-muted-foreground">Validando Instagram...</p>
+                  )}
+                  {instagramData?.exists && (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                      {instagramData.isVerified && (
+                        <span className="text-blue-500 font-medium">✓ Verificado</span>
+                      )}
+                      {instagramData.followersDisplay && (
+                        <span>{instagramData.followersDisplay} seguidores</span>
+                      )}
+                      {instagramData.engagementRate && (
+                        <span>{instagramData.engagementRate} engajamento</span>
+                      )}
+                    </div>
+                  )}
+                  {instagramData?.exists === false && (
+                    <p className="text-xs text-red-500">Perfil não encontrado.</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="website">Website</Label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="website"
+                      value={formData.website}
+                      onChange={(e) => handleInputChange("website", e.target.value)}
+                      onBlur={handleWebsiteBlur}
+                      placeholder="https://suaempresa.com"
+                      className="pl-9 pr-10"
+                      data-testid="input-website"
+                    />
+                    {isEnrichingWebsite && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {isEnrichingWebsite && (
+                    <p className="text-xs text-muted-foreground">Analisando site...</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input id="phone" value={formData.phone} onChange={(e) => handleInputChange("phone", e.target.value)} placeholder="(00) 00000-0000" data-testid="input-phone" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => handleInputChange("email", e.target.value)} placeholder="contato@empresa.com" data-testid="input-email" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tradeName">Razão Social</Label>
+                  <Input id="tradeName" value={formData.tradeName} onChange={(e) => handleInputChange("tradeName", e.target.value)} placeholder="Razão social" data-testid="input-tradename" />
                 </div>
                 <div className="space-y-2">
                   <Label>Categoria</Label>
@@ -998,75 +1085,17 @@ export function CompanyProfileSettings() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input id="phone" value={formData.phone} onChange={(e) => handleInputChange("phone", e.target.value)} placeholder="(00) 00000-0000" data-testid="input-phone" />
+                  <Label>Faturamento Anual</Label>
+                  <Select value={formData.annualRevenue} onValueChange={(value) => setFormData(prev => ({ ...prev, annualRevenue: value }))}>
+                    <SelectTrigger data-testid="select-annual-revenue"><SelectValue placeholder="Selecionar faturamento" /></SelectTrigger>
+                    <SelectContent>
+                      {ANNUAL_REVENUE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" type="email" value={formData.email} onChange={(e) => handleInputChange("email", e.target.value)} placeholder="contato@empresa.com" data-testid="input-email" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="website">Website</Label>
-                  <div className="relative">
-                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="website" 
-                      value={formData.website} 
-                      onChange={(e) => handleInputChange("website", e.target.value)} 
-                      onBlur={handleWebsiteBlur}
-                      placeholder="https://suaempresa.com" 
-                      className="pl-9 pr-10"
-                      data-testid="input-website" 
-                    />
-                    {isEnrichingWebsite && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                    )}
-                  </div>
-                  {isEnrichingWebsite && (
-                    <p className="text-xs text-muted-foreground">Analisando site automaticamente...</p>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="instagram">Instagram</Label>
-                <div className="relative">
-                  <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="instagram" 
-                    value={formData.instagram} 
-                    onChange={(e) => handleInputChange("instagram", e.target.value)} 
-                    onBlur={handleInstagramBlur}
-                    placeholder="@suaempresa" 
-                    className={`pl-9 pr-10 ${instagramData?.exists === false ? "border-red-500" : instagramData?.exists ? "border-green-500" : ""}`}
-                    data-testid="input-instagram" 
-                  />
-                  {isEnrichingInstagram && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                </div>
-                {isEnrichingInstagram && (
-                  <p className="text-xs text-muted-foreground">Validando Instagram...</p>
-                )}
-                {instagramData?.exists && (
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                    {instagramData.isVerified && (
-                      <span className="text-blue-500 font-medium">✓ Verificado</span>
-                    )}
-                    {instagramData.followersDisplay && (
-                      <span>{instagramData.followersDisplay} seguidores</span>
-                    )}
-                    {instagramData.engagementRate && (
-                      <span>{instagramData.engagementRate} engajamento</span>
-                    )}
-                  </div>
-                )}
-                {instagramData?.exists === false && (
-                  <p className="text-xs text-red-500">Perfil não encontrado. Verifique o @ digitado.</p>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -1107,19 +1136,6 @@ export function CompanyProfileSettings() {
                   <Input id="neighborhood" value={formData.neighborhood} onChange={(e) => handleInputChange("neighborhood", e.target.value)} placeholder="Centro" data-testid="input-neighborhood" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="city">Cidade</Label>
-                  <Select value={formData.city} onValueChange={(value) => setFormData(prev => ({ ...prev, city: value }))}>
-                    <SelectTrigger data-testid="select-city">
-                      <SelectValue placeholder={isLoadingCities ? "Carregando..." : "Selecione a cidade"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cities.map((city) => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="state">Estado</Label>
                   <Select value={formData.state} onValueChange={(value) => {
                     setFormData(prev => ({ ...prev, state: value, city: "" }));
@@ -1134,14 +1150,26 @@ export function CompanyProfileSettings() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">Cidade</Label>
+                  {formData.state && cities.length > 0 ? (
+                    <Select value={cities.includes(formData.city) ? formData.city : ""} onValueChange={(value) => setFormData(prev => ({ ...prev, city: value }))}>
+                      <SelectTrigger data-testid="select-city">
+                        <SelectValue placeholder={isLoadingCities ? "Carregando..." : formData.city || "Selecione a cidade"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map((city) => (
+                          <SelectItem key={city} value={city}>{city}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder={formData.state ? "Carregando cidades..." : "Selecione o estado primeiro"} disabled={!formData.state} data-testid="input-city" />
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Inteligência da Marca - only shown when there's enriched data */}
-          {(company.brandColors?.length || company.cnpjRazaoSocial || company.websiteTitle || company.companyBriefing || company.aiContextSummary) && (
-            <BrandIntelligenceSection company={company} />
-          )}
 
           <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
             <CardHeader>
@@ -1170,247 +1198,29 @@ export function CompanyProfileSettings() {
 
         </div>
       </form>
-    </div>
-  );
-}
 
-function CollapsibleSection({ title, icon: Icon, children, defaultOpen = false }: {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sm font-medium hover:text-primary transition-colors">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-muted-foreground" />
-          {title}
-        </div>
-        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pb-1">
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-function BrandIntelligenceSection({ company }: { company: CompanyData }) {
-  const briefing = company.companyBriefing || company.aiContextSummary;
-
-  return (
-    <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Sparkles className="h-5 w-5 text-amber-500" />
-            Inteligência da Marca
-          </CardTitle>
-          {company.enrichmentScore != null && (
-            <Badge variant="secondary" className="text-xs">
-              Score: {company.enrichmentScore}/100
-            </Badge>
-          )}
-        </div>
-        <CardDescription>Dados coletados automaticamente via IA</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Brand Colors */}
-        {company.brandColors && company.brandColors.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Palette className="h-4 w-4 text-muted-foreground" />
-              Cores da Marca
-            </div>
-            <div className="flex gap-3">
-              {company.brandColors.map((color, i) => (
-                <div key={i} className="flex flex-col items-center gap-1">
-                  <div
-                    className="h-10 w-10 rounded-full border-2 border-background shadow-sm"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="text-[10px] text-muted-foreground font-mono">{color}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Brand Logo */}
-        {company.brandLogo && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Image className="h-4 w-4 text-muted-foreground" />
-              Logo Extraído
-            </div>
-            <div className="bg-muted/50 rounded-lg p-3 inline-block">
-              <img src={company.brandLogo} alt="Logo da marca" className="h-12 max-w-[200px] object-contain" />
-            </div>
-          </div>
-        )}
-
-        {/* Company Briefing */}
-        {briefing && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              Briefing da Empresa
-            </div>
-            <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-              {briefing}
-            </div>
-          </div>
-        )}
-
-        {/* CNPJ Data */}
-        {company.cnpjRazaoSocial && (
-          <CollapsibleSection title="Dados do CNPJ" icon={Building} defaultOpen={false}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Razão Social</span>
-                <p className="font-medium">{company.cnpjRazaoSocial}</p>
+      {/* Link para Brand Canvas */}
+      <Card className="border-none shadow-md bg-gradient-to-r from-violet-500/10 to-purple-500/10">
+        <CardContent className="py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Sparkles className="h-5 w-5 text-white" />
               </div>
-              {company.cnpjNomeFantasia && (
-                <div>
-                  <span className="text-muted-foreground">Nome Fantasia</span>
-                  <p className="font-medium">{company.cnpjNomeFantasia}</p>
-                </div>
-              )}
-              {company.cnpjSituacao && (
-                <div>
-                  <span className="text-muted-foreground">Situação</span>
-                  <div>
-                    <Badge variant={company.cnpjSituacao === "ATIVA" ? "default" : "destructive"} className="text-xs">
-                      {company.cnpjSituacao}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-              {company.cnpjAtividadePrincipal && (
-                <div>
-                  <span className="text-muted-foreground">Atividade Principal</span>
-                  <p className="font-medium">{company.cnpjAtividadePrincipal}</p>
-                </div>
-              )}
-              {company.cnpjDataAbertura && (
-                <div>
-                  <span className="text-muted-foreground">Data Abertura</span>
-                  <p className="font-medium">{company.cnpjDataAbertura}</p>
-                </div>
-              )}
-              {company.cnpjCapitalSocial && (
-                <div>
-                  <span className="text-muted-foreground">Capital Social</span>
-                  <p className="font-medium">R$ {Number(company.cnpjCapitalSocial).toLocaleString("pt-BR")}</p>
-                </div>
-              )}
-              {company.cnpjNaturezaJuridica && (
-                <div className="sm:col-span-2">
-                  <span className="text-muted-foreground">Natureza Jurídica</span>
-                  <p className="font-medium">{company.cnpjNaturezaJuridica}</p>
-                </div>
-              )}
-              {company.cnpjQsa && company.cnpjQsa.length > 0 && (
-                <div className="sm:col-span-2">
-                  <span className="text-muted-foreground">Sócios (QSA)</span>
-                  <div className="mt-1 space-y-1">
-                    {company.cnpjQsa.map((socio, i) => (
-                      <p key={i} className="font-medium text-xs">
-                        {socio.nome} <span className="text-muted-foreground">— {socio.qual}</span>
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div>
+                <h3 className="font-semibold">Brand Canvas</h3>
+                <p className="text-sm text-muted-foreground">Configure a inteligência da sua marca para briefings e campanhas</p>
+              </div>
             </div>
-          </CollapsibleSection>
-        )}
-
-        {/* Website Analysis */}
-        {company.websiteTitle && (
-          <CollapsibleSection title="Análise do Site" icon={Globe} defaultOpen={false}>
-            <div className="space-y-3 text-sm">
-              {company.websiteTitle && (
-                <div>
-                  <span className="text-muted-foreground">Título</span>
-                  <p className="font-medium">{company.websiteTitle}</p>
-                </div>
-              )}
-              {company.websiteDescription && (
-                <div>
-                  <span className="text-muted-foreground">Descrição</span>
-                  <p className="font-medium">{company.websiteDescription}</p>
-                </div>
-              )}
-              {company.websiteKeywords && company.websiteKeywords.length > 0 && (
-                <div>
-                  <span className="text-muted-foreground">Palavras-chave</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {company.websiteKeywords.slice(0, 15).map((kw, i) => (
-                      <Badge key={i} variant="outline" className="text-[10px]">{kw}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {company.websiteSocialLinks && Object.keys(company.websiteSocialLinks).length > 0 && (
-                <div>
-                  <span className="text-muted-foreground">Redes Sociais</span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {Object.entries(company.websiteSocialLinks).map(([platform, url]) => (
-                      <a key={platform} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                        <ExternalLink className="h-3 w-3" />
-                        {platform}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {company.websiteProducts && company.websiteProducts.length > 0 && (
-                <div>
-                  <span className="text-muted-foreground">Produtos/Serviços</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {company.websiteProducts.map((p, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">{p}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {company.ecommercePlatform && (
-                <div className="flex gap-4">
-                  <div>
-                    <span className="text-muted-foreground">E-commerce</span>
-                    <p className="font-medium">{company.ecommercePlatform}</p>
-                  </div>
-                  {company.ecommerceProductCount != null && (
-                    <div>
-                      <span className="text-muted-foreground">Produtos</span>
-                      <p className="font-medium">{company.ecommerceProductCount}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </CollapsibleSection>
-        )}
-
-        {/* FAQ */}
-        {company.websiteFaq && company.websiteFaq.length > 0 && (
-          <CollapsibleSection title="FAQ do Site" icon={HelpCircle} defaultOpen={false}>
-            <Accordion type="single" collapsible className="w-full">
-              {company.websiteFaq.map((item, i) => (
-                <AccordionItem key={i} value={`faq-${i}`}>
-                  <AccordionTrigger className="text-sm">{item.question}</AccordionTrigger>
-                  <AccordionContent className="text-sm text-muted-foreground">
-                    {item.answer}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </CollapsibleSection>
-        )}
-      </CardContent>
-    </Card>
+            <Link href="/company/brand-canvas">
+              <Button variant="outline" className="gap-2">
+                Abrir Canvas
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

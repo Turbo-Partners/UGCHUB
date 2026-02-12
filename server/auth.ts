@@ -9,7 +9,7 @@ import { storage } from "./storage";
 import { User as SelectUser, InsertCompany, InsertCompanyMember } from "@shared/schema";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { db } from "./db";
-import { users } from "@shared/schema";
+import { users, companies, companyMembers } from "@shared/schema";
 import { eq } from "drizzle-orm";
 // DISABLED: Auto enrichment on login removed to control Apify costs
 // import { refreshCreatorProfileLight } from "./services/enrichment";
@@ -28,6 +28,12 @@ declare module 'express-session' {
       originalUserId: number;
       impersonatedUserId: number;
       startedAt: string;
+    };
+    tiktokOAuthState?: {
+      nonce: string;
+      userId: number;
+      timestamp: number;
+      returnTo?: string;
     };
   }
 }
@@ -255,23 +261,28 @@ export function setupAuth(app: Express) {
 
       const existingUser = await storage.getUserByEmail(req.body.email);
       if (existingUser) {
-        return res.status(400).send("Email already exists");
+        // Check if this is an orphaned company user (created but company creation failed)
+        if (existingUser.role === "company" && req.body.role === "company") {
+          const userCompanies = await storage.getUserCompanies(existingUser.id);
+          if (userCompanies.length === 0) {
+            // Orphaned user - delete and allow re-registration
+            console.log(`[Auth] Cleaning up orphaned company user ${existingUser.id} (${existingUser.email})`);
+            await storage.deleteUser(existingUser.id);
+          } else {
+            return res.status(400).send("Email already exists");
+          }
+        } else {
+          return res.status(400).send("Email already exists");
+        }
       }
 
       const hashedPassword = await hashPassword(req.body.password);
       const verificationToken = randomBytes(32).toString("hex");
 
-      const user = await storage.createUser({
-        ...req.body,
-        password: hashedPassword,
-        verificationToken,
-        isVerified: false,
-      });
+      // Use transaction for company registration to avoid orphaned users
+      if (req.body.role === "company") {
+        const companyName = req.body.companyName?.trim() || req.body.name;
 
-      // If the user is registering as a company, create the company and add them as owner
-      if (user.role === "company") {
-        const companyName = req.body.companyName?.trim() || user.name;
-        
         // Generate a unique slug from company name
         let baseSlug = companyName
           .toLowerCase()
@@ -280,12 +291,11 @@ export function setupAuth(app: Express) {
           .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with dashes
           .replace(/^-+|-+$/g, "") // Remove leading/trailing dashes
           .substring(0, 50);
-        
-        // Fallback slug if empty (e.g., non-latin characters)
+
         if (!baseSlug) {
-          baseSlug = `empresa-${user.id}`;
+          baseSlug = "empresa";
         }
-        
+
         // Check if slug exists and make it unique if needed
         let slug = baseSlug;
         let slugCounter = 1;
@@ -294,33 +304,49 @@ export function setupAuth(app: Express) {
           slugCounter++;
         }
 
-        // Create the company
-        const companyData: InsertCompany = {
-          name: companyName,
-          slug: slug,
-          createdByUserId: user.id,
-          email: user.email,
-          isDiscoverable: true,
-          autoJoinCommunity: true,
-        };
+        const result = await db.transaction(async (tx) => {
+          // Create user inside transaction
+          const [user] = await tx.insert(users).values({
+            ...req.body,
+            password: hashedPassword,
+            verificationToken,
+            isVerified: false,
+          }).returning();
 
-        const company = await storage.createCompany(companyData);
-        console.log(`[Auth] Created company "${company.name}" (ID: ${company.id}) for user ${user.id}`);
+          // Create company inside same transaction
+          const [company] = await tx.insert(companies).values({
+            name: companyName,
+            slug: slug,
+            createdByUserId: user.id,
+            email: user.email,
+            isDiscoverable: true,
+            autoJoinCommunity: true,
+          } as InsertCompany).returning();
 
-        // Add the user as owner of the company
-        const memberData: InsertCompanyMember = {
-          companyId: company.id,
-          userId: user.id,
-          role: "owner",
-        };
+          // Add user as owner inside same transaction
+          await tx.insert(companyMembers).values({
+            companyId: company.id,
+            userId: user.id,
+            role: "owner",
+          } as InsertCompanyMember);
 
-        await storage.addCompanyMember(memberData);
-        console.log(`[Auth] Added user ${user.id} as owner of company ${company.id}`);
-        // DISABLED: Auto enrichment removed to control costs - use on-demand only
+          console.log(`[Auth] Created company "${company.name}" (ID: ${company.id}) for user ${user.id}`);
+          return user;
+        });
+
+        await sendVerificationEmail(result.email, verificationToken);
+        return res.status(201).json({ message: "Registration successful. Please verify your email." });
       }
 
-      await sendVerificationEmail(user.email, verificationToken);
+      // Creator registration (no transaction needed - single insert)
+      const user = await storage.createUser({
+        ...req.body,
+        password: hashedPassword,
+        verificationToken,
+        isVerified: false,
+      });
 
+      await sendVerificationEmail(user.email, verificationToken);
       res.status(201).json({ message: "Registration successful. Please verify your email." });
     } catch (err) {
       next(err);
@@ -544,8 +570,8 @@ export function setupAuth(app: Express) {
     // Check admin access
     const email = req.user?.email || '';
     const isAdminByRole = req.user?.role === 'admin';
-    const isAdminByEmail = email.endsWith('@turbopartners.com') || email === 'rodrigoqs9@gmail.com';
-    
+    const isAdminByEmail = email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+
     if (!isAdminByRole && !isAdminByEmail) {
       return res.sendStatus(403);
     }
@@ -565,7 +591,7 @@ export function setupAuth(app: Express) {
     // Prevent impersonating admins
     const targetEmail = targetUser.email || '';
     const isTargetAdminByRole = targetUser.role === 'admin';
-    const isTargetAdminByEmail = targetEmail.endsWith('@turbopartners.com') || targetEmail === 'rodrigoqs9@gmail.com';
+    const isTargetAdminByEmail = targetEmail.endsWith('@turbopartners.com.br') || targetEmail === 'rodrigoqs9@gmail.com';
     
     if (isTargetAdminByRole || isTargetAdminByEmail) {
       return res.status(403).json({ error: "Não é possível impersonar administradores" });
@@ -749,6 +775,7 @@ export function setupAuth(app: Express) {
 
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        // Security: same response whether user exists or not
         return res.json({ message: "Se o email existir, um link de recuperação foi enviado" });
       }
 
@@ -760,8 +787,21 @@ export function setupAuth(app: Express) {
         resetTokenExpiry,
       });
 
-      await sendPasswordResetEmail(user.email, resetToken);
+      console.log(`[Auth] Password reset token generated for user ${user.id} (${user.email})`);
 
+      const emailSent = await sendPasswordResetEmail(user.email, resetToken);
+
+      if (!emailSent) {
+        console.error(`[Auth] Failed to send password reset email to ${user.email}`);
+        // Clear token since email wasn't sent
+        await storage.updateUser(user.id, {
+          resetToken: null,
+          resetTokenExpiry: null,
+        });
+        return res.status(500).json({ message: "Erro ao enviar email de recuperação. Tente novamente." });
+      }
+
+      console.log(`[Auth] Password reset email sent successfully to ${user.email}`);
       res.json({ message: "Se o email existir, um link de recuperação foi enviado" });
     } catch (err) {
       console.error("Forgot password error:", err);
