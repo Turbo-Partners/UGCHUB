@@ -2900,23 +2900,23 @@ Crawl-delay: 1
         return res.status(400).json({ error: "Nome da loja é obrigatório" });
       }
 
-      // Update the company
-      const updatedCompany = await storage.updateCompany(companyId, {
+      // Build update object
+      const updatePayload = {
         name: name.trim(),
-        tradeName: tradeName?.trim() || null,
-        description: description?.trim() || null,
-        cnpj: cnpj?.trim() || null,
-        phone: phone?.trim() || null,
-        email: email?.trim() || null,
-        website: website?.trim() || null,
-        instagram: instagram?.trim() || null,
-        cep: cep?.trim() || null,
-        street: street?.trim() || null,
-        number: number?.trim() || null,
-        neighborhood: neighborhood?.trim() || null,
-        city: city?.trim() || null,
-        state: state?.trim() || null,
-        complement: complement?.trim() || null,
+        ...(tradeName !== undefined && { tradeName: tradeName?.trim() || null }),
+        ...(description !== undefined && { description: description?.trim() || null }),
+        ...(cnpj !== undefined && { cnpj: cnpj?.trim() || null }),
+        ...(phone !== undefined && { phone: phone?.trim() || null }),
+        ...(email !== undefined && { email: email?.trim() || null }),
+        ...(website !== undefined && { website: website?.trim() || null }),
+        ...(instagram !== undefined && { instagram: instagram?.trim() || null }),
+        ...(cep !== undefined && { cep: cep?.trim() || null }),
+        ...(street !== undefined && { street: street?.trim() || null }),
+        ...(number !== undefined && { number: number?.trim() || null }),
+        ...(neighborhood !== undefined && { neighborhood: neighborhood?.trim() || null }),
+        ...(city !== undefined && { city: city?.trim() || null }),
+        ...(state !== undefined && { state: state?.trim() || null }),
+        ...(complement !== undefined && { complement: complement?.trim() || null }),
         ...(logo !== undefined && { logo }),
         ...(coverPhoto !== undefined && { coverPhoto }),
         ...(tagline !== undefined && { tagline: tagline?.trim() || null }),
@@ -2929,7 +2929,9 @@ Crawl-delay: 1
         ...(websiteProducts !== undefined && { websiteProducts: Array.isArray(websiteProducts) && websiteProducts.length > 0 ? websiteProducts : null }),
         ...(structuredBriefing !== undefined && { structuredBriefing: structuredBriefingSchema.parse(structuredBriefing) }),
         ...(tiktok !== undefined && { tiktok: tiktok?.trim() || null }),
-      });
+      };
+
+      const updatedCompany = await storage.updateCompany(companyId, updatePayload);
 
       // Recalculate enrichment score after manual save
       const freshCompanyForScore = await storage.getCompany(companyId);
@@ -5043,6 +5045,11 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
           ecommerceProductCount: companyData?.ecommerceProductCount || null,
           ecommerceCategories: companyData?.ecommerceCategories || null,
           enrichmentScore: companyData?.enrichmentScore || null,
+          // Additional enrichment text fields
+          instagramBio: companyData?.instagramBio || null,
+          websiteAbout: companyData?.websiteAbout || null,
+          aiContextSummary: companyData?.aiContextSummary || null,
+          brandCanvas: companyData?.brandCanvas || null,
         };
 
         const favoriteCount = await storage.getCompanyFavoriteCount(companyId);
@@ -5129,6 +5136,21 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     } catch (error) {
       console.error('[API] Error requesting membership:', error);
       res.status(500).json({ error: "Erro ao solicitar entrada na comunidade" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/public-deliverables", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const companyId = parseInt(req.params.companyId);
+      const deliverables = await storage.getCompanyPublicDeliverables(companyId);
+      res.json(deliverables);
+    } catch (error) {
+      console.error('[API] Error getting public deliverables:', error);
+      res.status(500).json({ error: "Erro ao buscar trabalhos realizados" });
     }
   });
 
@@ -9238,15 +9260,15 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
       // Map CNAE to category
       const cnaeCode = data.atividade_principal?.[0]?.code || "";
       let suggestedCategory = "";
-      if (cnaeCode.startsWith("47") || cnaeCode.startsWith("46")) suggestedCategory = "retail";
-      else if (cnaeCode.startsWith("56")) suggestedCategory = "food";
-      else if (cnaeCode.startsWith("62") || cnaeCode.startsWith("63")) suggestedCategory = "technology";
-      else if (cnaeCode.startsWith("86") || cnaeCode.startsWith("87")) suggestedCategory = "health";
-      else if (cnaeCode.startsWith("85")) suggestedCategory = "education";
-      else if (cnaeCode.startsWith("96")) suggestedCategory = "beauty";
-      else if (cnaeCode.startsWith("55") || cnaeCode.startsWith("79")) suggestedCategory = "travel";
-      else if (cnaeCode.startsWith("64") || cnaeCode.startsWith("65") || cnaeCode.startsWith("66")) suggestedCategory = "finance";
-      else if (cnaeCode.startsWith("93") || cnaeCode.startsWith("94")) suggestedCategory = "sports";
+      if (cnaeCode.startsWith("47") || cnaeCode.startsWith("46")) suggestedCategory = "outros";
+      else if (cnaeCode.startsWith("56")) suggestedCategory = "alimentos";
+      else if (cnaeCode.startsWith("62") || cnaeCode.startsWith("63")) suggestedCategory = "tecnologia";
+      else if (cnaeCode.startsWith("86") || cnaeCode.startsWith("87")) suggestedCategory = "saude";
+      else if (cnaeCode.startsWith("85")) suggestedCategory = "outros";
+      else if (cnaeCode.startsWith("96")) suggestedCategory = "beleza";
+      else if (cnaeCode.startsWith("55") || cnaeCode.startsWith("79")) suggestedCategory = "outros";
+      else if (cnaeCode.startsWith("64") || cnaeCode.startsWith("65") || cnaeCode.startsWith("66")) suggestedCategory = "outros";
+      else if (cnaeCode.startsWith("93") || cnaeCode.startsWith("94")) suggestedCategory = "fitness";
       
       // Determine company size based on natureza juridica
       let porte = "";

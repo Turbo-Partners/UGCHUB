@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { companies, type StructuredBriefing } from "@shared/schema";
+import { companies, type StructuredBriefing, type BrandCanvas } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
 
@@ -21,7 +21,8 @@ export async function enrichCompanyCnpj(companyId: number, cnpj: string): Promis
     const data = await response.json();
     if (data.status === "ERROR") return false;
 
-    await db.update(companies).set({
+    // Build update object with CNPJ data
+    const updateData: Record<string, any> = {
       cnpjRazaoSocial: data.nome || null,
       cnpjNomeFantasia: data.fantasia || null,
       cnpjSituacao: data.situacao || null,
@@ -31,7 +32,20 @@ export async function enrichCompanyCnpj(companyId: number, cnpj: string): Promis
       cnpjNaturezaJuridica: data.natureza_juridica || null,
       cnpjQsa: data.qsa?.map((s: any) => ({ nome: s.nome, qual: s.qual })) || null,
       cnpjLastUpdated: new Date(),
-    }).where(eq(companies.id, companyId));
+    };
+
+    // Fill city/state from CNPJ data if not already set
+    const existing = await db.select({ city: companies.city, state: companies.state }).from(companies).where(eq(companies.id, companyId)).limit(1);
+    if (existing[0]) {
+      if (!existing[0].city && data.municipio) {
+        updateData.city = data.municipio;
+      }
+      if (!existing[0].state && data.uf) {
+        updateData.state = data.uf;
+      }
+    }
+
+    await db.update(companies).set(updateData).where(eq(companies.id, companyId));
 
     console.log(`[CompanyEnrich] CNPJ updated for company ${companyId}`);
     return true;
@@ -272,6 +286,7 @@ ${aiInput}
 
 Retorne JSON com esta estrutura exata:
 {
+  "aboutBrand": "Conte a história da marca: quem é, como surgiu, qual o propósito. Tom narrativo e inspiracional. (2-3 frases, max 500 chars)",
   "whatWeDo": "O que a empresa faz e vende. Seja específico. (2-3 frases, max 500 chars)",
   "targetAudience": "Quem compra: faixa etária, gênero predominante, classe social, interesses. Infira dos produtos e conteúdo do site. (2-3 frases, max 400 chars)",
   "brandVoice": "formal | descontraido | tecnico | inspiracional | divertido | premium | jovem",
@@ -290,9 +305,10 @@ Retorne JSON com esta estrutura exata:
     const cleanJson = aiResponse.replace(/```json?\n?/g, "").replace(/```\n?/g, "").trim();
     const parsed = JSON.parse(cleanJson);
 
-    // Separate profile fields (description, tagline) from briefing fields
+    // Separate profile fields (description, tagline, aboutBrand) from briefing fields
     const aiDescription: string | undefined = parsed.description;
     const aiTagline: string | undefined = parsed.tagline;
+    const aiAboutBrand: string | undefined = parsed.aboutBrand;
 
     const sb: StructuredBriefing = {
       whatWeDo: parsed.whatWeDo,
@@ -323,6 +339,21 @@ Retorne JSON com esta estrutura exata:
     if (aiTagline && !company.tagline) {
       updateData.tagline = aiTagline;
     }
+
+    // Merge AI data into Brand Canvas (only fill empty fields, never overwrite manual data)
+    const existingCanvas = (company.brandCanvas as BrandCanvas | null) || {};
+    const updatedCanvas: BrandCanvas = {
+      ...existingCanvas,
+      aboutBrand: existingCanvas.aboutBrand || aiAboutBrand,
+      whatWeDo: existingCanvas.whatWeDo || sb.whatWeDo,
+      targetAudience: existingCanvas.targetAudience || sb.targetAudience,
+      brandVoice: existingCanvas.brandVoice || sb.brandVoice,
+      differentials: existingCanvas.differentials || sb.differentials,
+      idealContentTypes: existingCanvas.idealContentTypes?.length ? existingCanvas.idealContentTypes : sb.idealContentTypes,
+      avoidTopics: existingCanvas.avoidTopics || sb.avoidTopics,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+    updateData.brandCanvas = updatedCanvas;
 
     await db.update(companies).set(updateData).where(eq(companies.id, companyId));
 

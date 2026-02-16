@@ -50,7 +50,7 @@ const CampaignWorkspace = lazy(() => import("@/pages/creator/campaign-workspace"
 const CampaignView = lazy(() => import("@/pages/creator/campaign-view"));
 const CreatorOnboarding = lazy(() => import("@/pages/creator/onboarding"));
 const CreatorProfile = lazy(() => import("@/pages/creator/profile"));
-const CompanyPublicProfile = lazy(() => import("@/pages/creator/company-profile"));
+const CompanyPublicProfile = lazy(() => import("@/pages/creator/company-profile/company-profile"));
 const FavoriteCompanies = lazy(() => import("@/pages/creator/favorite-companies"));
 const CreatorAnalytics = lazy(() => import("@/pages/creator/analytics"));
 const CreatorLeaderboard = lazy(() => import("@/pages/creator/leaderboard"));

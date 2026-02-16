@@ -91,7 +91,18 @@ export interface IStorage {
     hasVideo: boolean;
     completedAt: string;
   }[]>;
-  
+  getCompanyPublicDeliverables(companyId: number, limit?: number): Promise<{
+    id: number;
+    fileUrl: string;
+    fileType: string | null;
+    deliverableType: string | null;
+    description: string | null;
+    uploadedAt: string;
+    campaignTitle: string;
+    creatorName: string;
+    creatorAvatar: string | null;
+  }[]>;
+
   // Trending Companies
   getTrendingCompanies(limit?: number): Promise<{
     id: number;
@@ -1140,14 +1151,14 @@ export class DatabaseStorage implements IStorage {
         u.city as "creatorCity",
         u.target_niche as "creatorNiche",
         (
-          SELECT d.url FROM deliverables d 
-          WHERE d.application_id = a.id 
+          SELECT d.file_url FROM deliverables d
+          WHERE d.application_id = a.id
           ORDER BY d.created_at DESC LIMIT 1
         ) as "thumbnail",
         EXISTS(
-          SELECT 1 FROM deliverables d 
-          WHERE d.application_id = a.id 
-          AND (d.url LIKE '%.mp4' OR d.url LIKE '%.mov' OR d.url LIKE '%.webm')
+          SELECT 1 FROM deliverables d
+          WHERE d.application_id = a.id
+          AND (d.file_url LIKE '%.mp4' OR d.file_url LIKE '%.mov' OR d.file_url LIKE '%.webm')
         ) as "hasVideo",
         COALESCE(a.updated_at, a.created_at)::text as "completedAt"
       FROM applications a
@@ -1160,6 +1171,43 @@ export class DatabaseStorage implements IStorage {
       LIMIT ${limit}
     `);
     
+    return (result.rows || []) as any[];
+  }
+
+  async getCompanyPublicDeliverables(companyId: number, limit: number = 20): Promise<{
+    id: number;
+    fileUrl: string;
+    fileType: string | null;
+    deliverableType: string | null;
+    description: string | null;
+    uploadedAt: string;
+    campaignTitle: string;
+    creatorName: string;
+    creatorAvatar: string | null;
+  }[]> {
+    const result = await db.execute(sql`
+      SELECT
+        d.id,
+        d.file_url as "fileUrl",
+        d.file_type as "fileType",
+        d.deliverable_type as "deliverableType",
+        d.description,
+        d.uploaded_at::text as "uploadedAt",
+        camp.title as "campaignTitle",
+        u.name as "creatorName",
+        u.avatar as "creatorAvatar"
+      FROM deliverables d
+      JOIN applications a ON a.id = d.application_id
+      JOIN campaigns camp ON camp.id = a.campaign_id
+      JOIN users u ON u.id = a.creator_id
+      WHERE camp.company_id = ${companyId}
+        AND a.status = 'accepted'
+        AND a.workflow_status IN ('entregue', 'concluido')
+        AND d.file_url IS NOT NULL
+      ORDER BY d.uploaded_at DESC NULLS LAST
+      LIMIT ${limit}
+    `);
+
     return (result.rows || []) as any[];
   }
 

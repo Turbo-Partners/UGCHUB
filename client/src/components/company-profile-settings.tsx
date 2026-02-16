@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Building2, MapPin, Save, Loader2, Upload, Globe, Image, Eye, Compass, Instagram, Sparkles, ShoppingCart, ExternalLink } from "lucide-react";
+import { Building2, MapPin, Save, Loader2, Upload, Globe, Image, Eye, Compass, Instagram, Sparkles, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ANNUAL_REVENUE_OPTIONS } from "@shared/constants";
@@ -195,7 +195,8 @@ export function CompanyProfileSettings() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const formInitializedRef = useRef(false);
+  const [prevCompanyId, setPrevCompanyId] = useState<number | null>(null);
+  const manuallyEditedFields = useRef<Set<string>>(new Set());
 
   const { data: activeCompany, isLoading } = useQuery<ActiveCompanyResponse>({
     queryKey: ["/api/active-company"],
@@ -208,37 +209,38 @@ export function CompanyProfileSettings() {
 
   const company = activeCompany?.company;
 
-  useEffect(() => {
-    if (company && !formInitializedRef.current) {
-      formInitializedRef.current = true;
-      setFormData({
-        name: company.name || "",
-        tradeName: company.tradeName || "",
-        description: company.description || "",
-        cnpj: company.cnpj || "",
-        phone: company.phone || "",
-        email: company.email || "",
-        website: company.website || "",
-        instagram: company.instagram || "",
-        annualRevenue: company.annualRevenue || "",
-        cep: company.cep || "",
-        street: company.street || "",
-        number: company.number || "",
-        neighborhood: company.neighborhood || "",
-        city: company.city || "",
-        state: company.state || "",
-        complement: company.complement || "",
-        tagline: company.tagline || "",
-        category: company.category || "",
-        isDiscoverable: company.isDiscoverable || false,
-      });
-      lastEnrichedCnpjRef.current = company.cnpj?.replace(/\D/g, "") || "";
-      lastEnrichedWebsiteRef.current = company.website || "";
-      lastEnrichedInstagramRef.current = company.instagram?.replace("@", "") || "";
-      setLogoPreview(company.logo);
-      setCoverPhotoPreview(company.coverPhoto);
-    }
-  }, [company]);
+  // Derive form state from company data during render (before paint)
+  // React recommended pattern: https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  if (company && prevCompanyId !== company.id) {
+    setPrevCompanyId(company.id);
+    manuallyEditedFields.current.clear();
+    lastEnrichedCnpjRef.current = company.cnpj?.replace(/\D/g, "") || "";
+    lastEnrichedWebsiteRef.current = company.website || "";
+    lastEnrichedInstagramRef.current = company.instagram?.replace("@", "") || "";
+    setFormData({
+      name: company.name || "",
+      tradeName: company.tradeName || "",
+      description: company.description || "",
+      cnpj: company.cnpj || "",
+      phone: company.phone || "",
+      email: company.email || "",
+      website: company.website || "",
+      instagram: company.instagram || "",
+      annualRevenue: company.annualRevenue || "",
+      cep: company.cep || "",
+      street: company.street || "",
+      number: company.number || "",
+      neighborhood: company.neighborhood || "",
+      city: company.city || "",
+      state: company.state || "",
+      complement: company.complement || "",
+      tagline: company.tagline || "",
+      category: company.category || "",
+      isDiscoverable: company.isDiscoverable || false,
+    });
+    setLogoPreview(company.logo || null);
+    setCoverPhotoPreview(company.coverPhoto || null);
+  }
 
   useEffect(() => {
     if (formData.state) {
@@ -453,20 +455,20 @@ export function CompanyProfileSettings() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
-          const updates: Partial<FormData> = {
-            tradeName: data.data.razaoSocial || formData.tradeName,
-            cep: data.data.cep ? formatCEP(data.data.cep) : formData.cep,
-            street: data.data.logradouro || formData.street,
-            number: data.data.numero || formData.number,
-            neighborhood: data.data.bairro || formData.neighborhood,
-            city: data.data.municipio || formData.city,
-            state: data.data.uf || formData.state,
-            phone: data.data.telefone ? formatPhone(data.data.telefone) : formData.phone,
-            email: data.data.email || formData.email,
-          };
-          
-          // Use suggested category from CNAE if no category set
-          if (!formData.category && data.data.suggestedCategory) {
+          const edited = manuallyEditedFields.current;
+          const updates: Partial<FormData> = {};
+          if (!edited.has('tradeName') && data.data.razaoSocial) updates.tradeName = data.data.razaoSocial;
+          if (!edited.has('cep') && data.data.cep) updates.cep = formatCEP(data.data.cep);
+          if (!edited.has('street') && data.data.logradouro) updates.street = data.data.logradouro;
+          if (!edited.has('number') && data.data.numero) updates.number = data.data.numero;
+          if (!edited.has('neighborhood') && data.data.bairro) updates.neighborhood = data.data.bairro;
+          if (!edited.has('city') && data.data.municipio) updates.city = data.data.municipio;
+          if (!edited.has('state') && data.data.uf) updates.state = data.data.uf;
+          if (!edited.has('phone') && data.data.telefone) updates.phone = formatPhone(data.data.telefone);
+          if (!edited.has('email') && data.data.email) updates.email = data.data.email;
+
+          // Use suggested category from CNAE if no category set and not manually edited
+          if (!edited.has('category') && !formData.category && data.data.suggestedCategory) {
             updates.category = data.data.suggestedCategory;
           }
           
@@ -557,23 +559,24 @@ export function CompanyProfileSettings() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
+          const edited = manuallyEditedFields.current;
           const updates: Partial<FormData> = {};
           let fieldsUpdated = 0;
-          
-          // Se forceRefresh, sobrescreve campos existentes; caso contrário, só preenche vazios
-          if (data.data.description && data.data.description !== "null" && (forceRefresh || !formData.description)) {
+
+          // Só preenche campo se não foi editado manualmente (forceRefresh sobrescreve)
+          if (data.data.description && data.data.description !== "null" && !edited.has('description') && (forceRefresh || !formData.description)) {
             updates.description = data.data.description;
             fieldsUpdated++;
           }
-          if (data.data.category && data.data.category !== "null" && data.data.category !== null && (forceRefresh || !formData.category)) {
+          if (data.data.category && data.data.category !== "null" && data.data.category !== null && !edited.has('category') && (forceRefresh || !formData.category)) {
             updates.category = data.data.category;
             fieldsUpdated++;
           }
-          if (data.data.tagline && data.data.tagline !== "null" && data.data.tagline !== null && (forceRefresh || !formData.tagline)) {
+          if (data.data.tagline && data.data.tagline !== "null" && data.data.tagline !== null && !edited.has('tagline') && (forceRefresh || !formData.tagline)) {
             updates.tagline = data.data.tagline;
             fieldsUpdated++;
           }
-          if (data.data.socialMedia?.instagram && (forceRefresh || !formData.instagram)) {
+          if (data.data.socialMedia?.instagram && !edited.has('instagram') && (forceRefresh || !formData.instagram)) {
             const ig = data.data.socialMedia.instagram;
             if (ig && ig !== "null" && ig !== null) {
               updates.instagram = ig.startsWith("@") ? ig : `@${ig}`;
@@ -669,7 +672,7 @@ export function CompanyProfileSettings() {
             engagementRate: data.data.engagementRate,
           });
           
-          if (!formData.instagram.startsWith("@")) {
+          if (!formData.instagram.startsWith("@") && !manuallyEditedFields.current.has('instagram')) {
             setFormData(prev => ({ ...prev, instagram: `@${usernameValue}` }));
           }
           
@@ -801,6 +804,7 @@ export function CompanyProfileSettings() {
   };
 
   const handleInputChange = (field: keyof FormData, value: string) => {
+    manuallyEditedFields.current.add(field);
     let formattedValue = value;
     if (field === "cnpj") formattedValue = formatCNPJ(value);
     if (field === "phone") formattedValue = formatPhone(value);
@@ -818,36 +822,49 @@ export function CompanyProfileSettings() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Erro ao atualizar dados");
+        let errorMsg = `Erro ${res.status}`;
+        try {
+          const error = await res.json();
+          errorMsg = error.error || error.message || errorMsg;
+        } catch {
+          errorMsg = `Erro ${res.status}: ${res.statusText}`;
+        }
+        throw new Error(errorMsg);
       }
       return res.json();
     },
     onSuccess: () => {
       toast.success("Dados atualizados!");
+      // Reset so query refetch will re-initialize the form with fresh DB data
+      setPrevCompanyId(null);
+      manuallyEditedFields.current.clear();
+      // Update enrichment refs to prevent re-triggering
+      if (formData.cnpj) {
+        lastEnrichedCnpjRef.current = formData.cnpj.replace(/\D/g, "");
+      }
+      if (formData.website) {
+        lastEnrichedWebsiteRef.current = formData.website;
+      }
+      // Refresh cached data
       queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      // Trigger enrichment after save if fields have values that weren't enriched yet
-      const cnpjDigits = formData.cnpj.replace(/\D/g, "");
-      if (cnpjDigits.length === 14 && lastEnrichedCnpjRef.current !== cnpjDigits) {
-        setTimeout(() => enrichCnpj(false), 300);
-      }
-      if (formData.website && lastEnrichedWebsiteRef.current !== formData.website) {
-        setTimeout(() => enrichWebsite(false), 600);
-      }
     },
     onError: (error: Error) => {
       toast.error("Erro ao salvar", { description: error.message });
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitForm = () => {
     if (!formData.name.trim()) {
       toast.error("Erro", { description: "O nome da loja é obrigatório" });
       return;
     }
     updateMutation.mutate(formData);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitForm();
   };
 
   if (isLoading) {
@@ -869,6 +886,7 @@ export function CompanyProfileSettings() {
 
   return (
     <div className="space-y-6" data-testid="company-profile-settings">
+      <form onSubmit={handleSubmit}>
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-4 px-4 py-3 border-b mb-4">
         <div className="flex items-center justify-between">
           <div>
@@ -884,12 +902,12 @@ export function CompanyProfileSettings() {
                 </Button>
               </Link>
             )}
-            <Button 
-              type="submit" 
-              form="profile-settings-form"
-              disabled={updateMutation.isPending} 
+            <Button
+              type="button"
+              onClick={submitForm}
+              disabled={updateMutation.isPending}
               size="lg"
-              className="min-w-[160px]" 
+              className="min-w-[160px]"
               data-testid="button-save-profile-top"
             >
               {updateMutation.isPending ? (
@@ -902,7 +920,6 @@ export function CompanyProfileSettings() {
         </div>
       </div>
 
-      <form id="profile-settings-form" onSubmit={handleSubmit}>
         <div className="grid gap-6">
           <Card>
             <CardHeader>
@@ -1076,7 +1093,7 @@ export function CompanyProfileSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Categoria</Label>
-                  <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+                  <Select value={formData.category || undefined} onValueChange={(value) => { manuallyEditedFields.current.add("category"); setFormData(prev => ({ ...prev, category: value })); }}>
                     <SelectTrigger data-testid="select-category"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {categoryOptions.map((cat) => (
@@ -1086,8 +1103,8 @@ export function CompanyProfileSettings() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Faturamento Anual</Label>
-                  <Select value={formData.annualRevenue} onValueChange={(value) => setFormData(prev => ({ ...prev, annualRevenue: value }))}>
+                  <Label>Faturamento Mensal</Label>
+                  <Select value={formData.annualRevenue || undefined} onValueChange={(value) => { manuallyEditedFields.current.add("annualRevenue"); setFormData(prev => ({ ...prev, annualRevenue: value })); }}>
                     <SelectTrigger data-testid="select-annual-revenue"><SelectValue placeholder="Selecionar faturamento" /></SelectTrigger>
                     <SelectContent>
                       {ANNUAL_REVENUE_OPTIONS.map((option) => (
@@ -1137,7 +1154,8 @@ export function CompanyProfileSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="state">Estado</Label>
-                  <Select value={formData.state} onValueChange={(value) => {
+                  <Select value={formData.state || undefined} onValueChange={(value) => {
+                    manuallyEditedFields.current.add("state");
                     setFormData(prev => ({ ...prev, state: value, city: "" }));
                   }}>
                     <SelectTrigger data-testid="select-state">
@@ -1153,7 +1171,7 @@ export function CompanyProfileSettings() {
                 <div className="space-y-2">
                   <Label htmlFor="city">Cidade</Label>
                   {formData.state && cities.length > 0 ? (
-                    <Select value={cities.includes(formData.city) ? formData.city : ""} onValueChange={(value) => setFormData(prev => ({ ...prev, city: value }))}>
+                    <Select value={cities.includes(formData.city) ? formData.city : undefined} onValueChange={(value) => { manuallyEditedFields.current.add("city"); setFormData(prev => ({ ...prev, city: value })); }}>
                       <SelectTrigger data-testid="select-city">
                         <SelectValue placeholder={isLoadingCities ? "Carregando..." : formData.city || "Selecione a cidade"} />
                       </SelectTrigger>
@@ -1188,7 +1206,7 @@ export function CompanyProfileSettings() {
                 <Switch
                   id="isDiscoverable"
                   checked={formData.isDiscoverable}
-                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isDiscoverable: checked }))}
+                  onCheckedChange={(checked) => { manuallyEditedFields.current.add("isDiscoverable"); setFormData(prev => ({ ...prev, isDiscoverable: checked })); }}
                   data-testid="switch-discoverable"
                 />
               </div>

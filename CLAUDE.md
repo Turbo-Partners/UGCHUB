@@ -12,16 +12,16 @@ Communicate in **Português (Brasil)**, linguagem simples e direta.
 
 **Roles**: `creator` (descobre oportunidades, participa de campanhas, Academy), `company` (gerencia creators, campanhas, Brand Hub, comunidades), `admin` (controle total, impersonation, feature flags).
 
-**Domínios funcionais**: Marketplace de creators, campanhas com deliverables/tracking/rewards, Brand Hub (workspace centralizado), comunidades/membership com gamificação e leaderboards, Instagram Integration (OAuth, Hashtag Tracking, Comments AI, Publishing, Partnership Ads, DM Management, CRM Social), TikTok Integration (OAuth, métricas), Academy educacional, sistema de wallet/pagamentos, inspirations (swipe file), blog.
+**Domínios funcionais**: Marketplace de creators, campanhas com deliverables/tracking/rewards, Brand Hub (workspace centralizado por marca), comunidades/membership com gamificação e leaderboards, Instagram Integration (OAuth, Hashtag Tracking, Comments AI, Publishing, Partnership Ads, DM Management, CRM Social), TikTok Integration (OAuth, métricas), Academy educacional, sistema de wallet/pagamentos, inspirations (swipe file), blog, contratos digitais (Assinafy).
 
 ## Commands
 
 ```bash
-npm run dev              # Full-stack dev (Express + Vite, port 5000)
-npm run dev:client       # Client-only (Vite, port 5000)
+npm run dev              # Full-stack dev (Express + Vite HMR, porta 5000)
+npm run dev:client       # Client-only (Vite, porta 5000)
 npm run build            # Build (Vite → dist/public, esbuild → dist/index.js)
 npm run start            # Production (cross-env NODE_ENV=production node dist/index.js)
-npm run check            # TypeScript check (tsc --noEmit)
+npm run check            # TypeScript check (tsc com noEmit via tsconfig)
 npm run db:push          # Push schema → database (drizzle-kit push)
 npm run test             # vitest run (22 tests, 3 files)
 npm run test:watch       # vitest watch mode
@@ -29,29 +29,32 @@ npm run test:watch       # vitest watch mode
 
 ## Architecture
 
-**Full-stack TypeScript** — React 19 (Vite 7) + Express 4 + PostgreSQL (Drizzle ORM 0.39).
+**Full-stack TypeScript** — React 19.2 (Vite 7.1) + Express 4.21 + PostgreSQL (Drizzle ORM 0.39).
 
 ### Project Layout
 
 ```
 client/src/
-  ├── pages/             # ~40 pages organizadas por role (creator/, company/, admin/)
-  ├── components/        # ~44 componentes (+ ui/ com shadcn)
-  ├── hooks/             # use-toast, use-upload, use-facebook-sdk, use-tiktok, use-view-preference
-  └── lib/               # queryClient, provider (MarketplaceProvider), utils, cep
+  ├── pages/             # ~100 pages (creator/24, company/41, admin/9, public, auth, misc)
+  ├── components/        # ~47 componentes custom + gamification/ + ui/ (72 shadcn)
+  ├── hooks/             # 6 hooks (toast, upload, facebook-sdk, tiktok, view-preference, mobile)
+  └── lib/               # queryClient, provider, brand-context, nav-config, routes, utils, cep
 server/
-  ├── routes.ts          # Arquivo principal (~9900 linhas, 300+ endpoints)
-  ├── routes/            # Rotas modulares (instagram, messaging, stripe, campaign, tiktok, etc.)
-  ├── services/          # Lógica de negócio (16+ serviços)
-  ├── jobs/              # Background jobs (cron)
+  ├── routes.ts          # Arquivo principal (~10.000 linhas, ~300 endpoints)
+  ├── routes/            # 14 módulos de rotas (~10.000 linhas, ~200 endpoints)
+  ├── services/          # 15 serviços de negócio
+  ├── jobs/              # 5 background jobs (cron)
   ├── auth.ts            # Passport.js (local + Google OAuth)
-  ├── storage.ts         # Data access layer (~5900 linhas, 100+ métodos)
+  ├── storage.ts         # Data access layer (~5.900 linhas, 100+ métodos)
   ├── websocket.ts       # WebSocket server (/ws/notifications)
-  ├── email.ts           # SendGrid templates
-  ├── db.ts              # Drizzle + Pool connection
+  ├── email.ts           # SendGrid templates (~1.750 linhas)
+  ├── db.ts              # Drizzle + pg Pool
+  ├── objectStorage.ts   # Google Cloud Storage (upload de mídia)
+  ├── contract-pdf.ts    # Geração de contratos PDF (PDFKit)
+  ├── assinafy.ts        # Integração Assinafy (assinatura digital)
   └── apify-service.ts   # Apify TikTok service (legacy)
 shared/
-  ├── schema.ts          # Single source of truth: schemas, tabelas, Zod, types (~4000 linhas)
+  ├── schema.ts          # Single source of truth: 14 schemas, 91 tabelas, Zod, types (~3.400 linhas)
   ├── constants.ts       # Enums (nichos, plataformas, formatos, estados BR)
   └── utils.ts           # Utilitários compartilhados
 migrations/              # Drizzle migration files
@@ -71,39 +74,47 @@ migrations/              # Drizzle migration files
 | **Data fetching** | TanStack React Query 5.60 — `apiRequest()` em `client/src/lib/queryClient.ts` |
 | **UI** | shadcn/ui (New York style) + Radix UI + Tailwind CSS v4 |
 | **Forms** | React Hook Form 7.66 + `zodResolver` |
-| **Animations** | Framer Motion / Motion |
+| **Animations** | Motion 12 (`motion` package) |
 | **State** | React Query cache via `MarketplaceProvider` (`client/src/lib/provider.tsx`) |
 | **Charts** | Recharts 2.15 |
 | **Icons** | Lucide React |
 | **Toast** | Sonner + custom `use-toast` hook |
-| **Upload** | Uppy (AWS S3 presigned) |
+| **Upload** | Uppy (AWS S3 presigned) + Multer (server-side) |
 | **DnD** | @dnd-kit |
+| **Onboarding** | Driver.js (guided tours) |
+| **PDF** | PDFKit (contratos) |
 
-### Frontend Pages Map
+### Frontend Routes
 
-**Creator** (`/creator/*`):
-- `/` — Feed/Dashboard | `/onboarding` — 4 steps (About, Social, Banking, Personal)
-- `/campaigns` — Listar campanhas | `/campaigns/:id` — Detalhes
-- `/profile` — Perfil | `/portfolio` — Portfolio
-- `/communities` — Comunidades | `/brands` — Marcas parceiras
-- `/brand/:brandId/overview` — Overview da marca | `/academy` — Cursos
-- `/inspirations` — Swipe file | `/wallet` — Saldo e transações
-- `/messaging` — Mensagens | `/notifications` — Notificações
+**Creator** (rotas raiz, definidas em `client/src/lib/routes.ts`):
+- `/home` — Dashboard | `/explore` — Feed/Descoberta
+- `/campaigns` — Campanhas | `/campaigns/:id/workspace` — Workspace
+- `/brands` — Marcas parceiras | `/brands/:brandId` — Brand Hub
+- `/wallet` — Saldo e transações | `/academy` — Cursos
+- `/inspirations` — Swipe file | `/settings` — Configurações
+- `/messages` — Mensagens | `/notifications` — Notificações
+- `/invites` — Convites | `/profile` — Perfil
+- `/ranking` — Leaderboard
 
-**Company** (`/company/*`):
-- `/` — Dashboard (Analytics) | `/onboarding` — Setup empresa
-- `/campaigns` — Campanhas | `/create-campaign` — Nova campanha
-- `/campaigns/:id` — Detalhes | `/campaigns/:id/edit` — Editar
-- `/marketplace` — Descobrir creators | `/creators` — CRM de creators
-- `/community` — Gestão de membros | `/integrations` — Instagram/TikTok
-- `/wallet` — Carteira | `/brand-canvas` — Brand Canvas
-- `/messaging` — Mensagens | `/settings` — Configurações
+**Company** (`/company/*`, brand-centric):
+- `/company/home` — Dashboard | `/company/brands` — Lista de marcas
+- `/company/brand/:brandId/overview` — Overview da marca
+- `/company/brand/:brandId/campaigns` — Campanhas
+- `/company/brand/:brandId/discovery` — Descobrir creators
+- `/company/brand/:brandId/community` — Comunidade
+- `/company/brand/:brandId/operations` — Operações (Kanban)
+- `/company/brand/:brandId/tracking` — Tracking
+- `/company/brand/:brandId/content` — Content Library
+- `/company/brand/:brandId/messages` — Mensagens
+- `/company/brand/:brandId/program` — Programa (tiers, gamificação, rewards)
+- `/company/brand/:brandId/settings` — Configurações
+- `/company/settings` — Settings gerais
 
 **Admin** (`/admin/*`):
-- `/` — Dashboard | `/users` — Gestão de usuários
-- `/campaigns` — Todas campanhas | `/financial` — Financeiro
-- `/support` — Reports/Tickets | `/modules` — Feature flags
-- `/impersonate` — Impersonar usuário | `/academy` — Gerenciar cursos
+- `/admin` — Dashboard | `/admin/users` — Gestão de usuários
+- `/admin/campaigns` — Todas campanhas | `/admin/financial` — Financeiro
+- `/admin/support` — Reports/Tickets | `/admin/modules` — Feature flags
+- `/admin/content` — Conteúdo | `/admin/gamification` — Gamificação
 
 ### Backend Stack
 
@@ -114,21 +125,28 @@ migrations/              # Drizzle migration files
 
 ### Route Organization
 
-**Main file** (`server/routes.ts` ~9900 linhas): Auth, users, campaigns, applications, deliverables, notifications, favorites, company management, workflow stages, gamification, wallet, community, academy, inspirations, tags, enrichment, brand settings.
+**~500 endpoints totais** distribuídos entre `routes.ts` e módulos em `server/routes/`.
 
-**Modular routes** (`server/routes/`):
+**Main file** (`server/routes.ts` ~10.000 linhas, ~300 endpoints): Auth, users, campaigns, applications, deliverables, notifications, favorites, company management, workflow stages, gamification, wallet, community, academy, inspirations, tags, enrichment, brand settings.
 
-| Arquivo | Domínio |
-|---------|---------|
-| `instagram.routes.ts` | OAuth, conta, posts, comentários, DMs, hashtags, publishing, stories, contacts CRM |
-| `messaging.routes.ts` | Conversas, mensagens, read receipts |
-| `campaign.routes.ts` | CRUD avançado de campanhas, templates, briefings |
-| `user.routes.ts` | Perfil, endereços, conexões sociais |
-| `stripe.routes.ts` | Checkout, webhooks, status |
-| `tiktok.routes.ts` | OAuth, perfil, vídeos, métricas |
-| `brand-canvas.routes.ts` | Brand Canvas AI-powered |
-| `apify.routes.ts` | Gestão de data sources, estimativas de custo |
-| `meta-marketing.routes.ts` | Meta Ads, Partnership Ads, ad accounts |
+**Modular routes** (`server/routes/`, ~200 endpoints):
+
+| Arquivo | Endpoints | Domínio |
+|---------|-----------|---------|
+| `instagram.routes.ts` | 45 | OAuth, conta, posts, comentários, DMs, hashtags, publishing, stories, contacts CRM |
+| `meta-marketing.routes.ts` | 30 | Meta Ads, Partnership Ads, ad accounts |
+| `apify.routes.ts` | 29 | Gestão de data sources, estimativas de custo |
+| `messaging.routes.ts` | 18 | Conversas, mensagens, read receipts |
+| `campaign.routes.ts` | 12 | CRUD avançado de campanhas, templates, briefings |
+| `enrichment.routes.ts` | 12 | Enrichment de perfis de creators e empresas |
+| `user.routes.ts` | 11 | Perfil, endereços, conexões sociais |
+| `hashtag.routes.ts` | 8 | Busca e tracking de hashtags |
+| `blog.routes.ts` | 7 | CRUD de posts do blog |
+| `publishing.routes.ts` | 7 | Publicação de conteúdo Instagram |
+| `tiktok.routes.ts` | 6 | OAuth, perfil, vídeos, métricas |
+| `comments.routes.ts` | 6 | Gestão de comentários Instagram |
+| `stripe.routes.ts` | 4 | Checkout, webhooks, status |
+| `brand-canvas.routes.ts` | 2 | Brand Canvas AI-powered |
 
 ### Services Reference
 
@@ -181,15 +199,16 @@ Interface `IStorage` com 100+ métodos. Categorias principais:
 | `autoEnrichmentJob.ts` | Event-driven + diário | Enriquece perfis de creators (pics + dados) |
 | `companyEnrichmentJob.ts` | Domingo 3h (`0 3 * * 0`) | Re-enriquece empresas (CNPJ, website, Instagram) |
 | `cleanup` | A cada 24h | Remove notificações antigas e logs |
-| `apifySyncJob.ts` | **DISABLED** | Sync batch de perfis Instagram (em favor de Apify Schedules) |
+| `apifySyncJob.ts` | **DISABLED** | Sync batch de perfis Instagram |
 
 ### Database
 
-**13 PostgreSQL schemas**, **97+ tabelas**, **60+ Zod schemas**, **100+ types exportados**.
+**14 PostgreSQL schemas**, **91 tabelas**, **91 Zod insert schemas**, **192 types exportados**.
 
 | Schema | Tabelas principais |
 |--------|-------------------|
 | `core` | `users`, `companies`, `companyMembers`, `companyUserInvites`, `notifications` |
+| `company` | Company-specific tables |
 | `campaign` | `campaigns`, `applications`, `deliverables`, `deliverableComments`, `campaignTemplates`, `campaignInvites`, `campaignHashtags`, `campaignCoupons`, `campaignPointsRules`, `campaignInspirations` |
 | `creator` | `creatorPosts`, `creatorAnalyticsHistory`, `creatorHashtags`, `creatorLevels`, `creatorPoints`, `creatorBadges`, `creatorAddresses`, `creatorDiscoveryProfiles`, `creatorAdPartners`, `creatorAuthLinks` |
 | `brand` | `brandSettings`, `brandPrograms`, `brandRewards`, `brandTierConfigs`, `brandCreatorTiers`, `brandCreatorMemberships` |
@@ -217,25 +236,28 @@ Schema changes: edit `shared/schema.ts` then `npm run db:push`.
 | **Apify** | Scraping on-demand (último recurso) | ~$2.60/1k profiles |
 | **OpenAI** | Sentiment analysis, sugestões de conteúdo | Pay-per-use |
 | **Google Gemini AI** | Análise de websites, geração de descrições | Pay-per-use |
+| **Anthropic Claude** | AI integrations (`@anthropic-ai/sdk`) | Pay-per-use |
 | **Stripe** | Checkout (card + boleto), webhooks | % por transação |
 | **SendGrid** | Emails transacionais | Free tier / Pay |
 | **ReceitaWS** | CNPJ lookup para empresas brasileiras | Free |
+| **Assinafy** | Assinatura digital de contratos | Pay-per-use |
 | **Google Cloud SQL** | PostgreSQL (produção) | Pay-per-use |
-| **Replit Object Storage** | Upload de arquivos e mídia | Included |
+| **Google Cloud Storage** | Upload de arquivos e mídia | Pay-per-use |
 
 **Apify Actors usados**: `apify/instagram-api-scraper`, `apify/instagram-profile-scraper`, `clockworks/tiktok-scraper`, `streamers/youtube-scraper`, `apify/e-commerce-scraping-tool`, `apify/influencer-discovery-agent`.
 
 ## Key Design Decisions
 
 1. **Data Extraction Hierarchy (LOCAL FIRST)**: Local DB → Free Meta APIs (Business Discovery) → Apify (paid, last resort). Minimizar custos Apify ($0.0005/profile BD vs $0.0026/profile Apify).
-2. **Profile Pictures**: Todas as fotos de perfil Instagram DEVEM ser salvas no Object Storage (URLs permanentes via `/api/storage/public/...`). Nunca salvar CDN URLs diretamente. Service: `server/services/instagram-profile-pic.ts`.
+2. **Profile Pictures**: Todas as fotos de perfil Instagram DEVEM ser salvas no Google Cloud Storage (URLs permanentes via `/api/storage/public/...`). Nunca salvar CDN URLs diretamente. Service: `server/services/instagram-profile-pic.ts`.
 3. **Dois arquivos Apify**: `server/apify-service.ts` (TikTok legacy) vs `server/services/apify.ts` (core service com todos actors). Ambos necessários.
 4. **Session-based auth** (não JWT) — habilita admin impersonation e sessões PostgreSQL-backed.
 5. **Zod validation**: Todos os POST/PUT bodies devem ser validados com Zod schemas. Erros Zod retornam `400` com detalhes.
 6. **UTM Parameters**: Links externos devem incluir `utm_source=creatorconnect, utm_medium=<local>, utm_campaign=<contexto>`.
 7. **Valores monetários em centavos**: Wallet, transações e comissões usam `integer` em centavos (R$ 10,00 = 1000).
 8. **Multi-tenant**: Empresas são `companies` separadas de `users`. Usuário pode pertencer a múltiplas empresas com roles (owner/admin/member). Sessão tem `activeCompanyId`.
-9. **Monolito modular**: `routes.ts` é o arquivo principal (~9900 linhas). Novas features complexas devem ser criadas em `server/routes/` como módulos separados.
+9. **Monolito modular**: `routes.ts` é o arquivo principal (~10.000 linhas). Novas features complexas devem ser criadas em `server/routes/` como módulos separados.
+10. **Brand-centric company**: Rotas da empresa são centradas em brand (`/company/brand/:brandId/...`). Routing config em `client/src/lib/routes.ts`.
 
 ## Code Patterns
 
@@ -364,10 +386,14 @@ expect(res.status).toBe(200);
 
 **TikTok**: `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
 
+**Contratos**: `ASSINAFY_API_KEY`, `ASSINAFY_WORKSPACE_ID`
+
 ## Deployment
 
-**Produção**: `ugc.turbopartners.com.br` — Replit (autoscale). Build: `npm run build` → `npm run start`.
+**Produção**: `ugc.turbopartners.com.br`. Build: `npm run build` → `npm run start`.
 
 **Database**: Google Cloud SQL PostgreSQL (IP: 34.95.249.110). Conexão via `DATABASE_URL`.
 
-**Sem CI/CD automatizado** — deploy manual via Replit.
+**Storage**: Google Cloud Storage para uploads de mídia e fotos de perfil.
+
+**Sem CI/CD automatizado** — deploy manual.
