@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
 import { insertCampaignSchema } from "@shared/schema";
 import { z } from "zod";
+import { sendGeminiMessage } from "../lib/gemini";
 
 function isAdminByEmail(user: any): boolean {
   const email = user?.email || '';
@@ -362,8 +363,6 @@ export function registerCampaignRoutes(app: Express): void {
       if (!sb && !company.companyBriefing && !company.websiteProducts?.length) {
         return res.status(400).json({ error: "Preencha a Inteligência da Marca antes de usar o auto-fill" });
       }
-
-      const { sendGeminiMessage } = await import("../replit_integrations/gemini");
 
       // Build rich brand context
       const contextParts: string[] = [];

@@ -447,7 +447,7 @@ export default function BlogPostPage() {
 
 function splitContentForAds(html: string): string[] {
   const h2Regex = /<h2[^>]*>/gi;
-  const matches = [...html.matchAll(h2Regex)];
+  const matches = Array.from(html.matchAll(h2Regex));
   
   if (matches.length < 3) {
     return [html];

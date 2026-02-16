@@ -2579,7 +2579,7 @@ export const instagramAccounts = socialSchema.table("instagram_accounts", {
 
 // Tipos de owner para instagram_profiles
 export const instagramProfileOwnerTypeEnum = ["user", "company", "external"] as const;
-export const instagramProfileSourceEnum = ["oauth", "apify", "manual"] as const;
+export const instagramProfileSourceEnum = ["oauth", "apify", "manual", "api"] as const;
 
 // Tabela unificada de perfis do Instagram
 export const instagramProfiles = socialSchema.table("instagram_profiles", {
@@ -3419,3 +3419,102 @@ export type DataSourceRegistry = typeof dataSourceRegistry.$inferSelect;
 export type InsertDataSourceRegistry = z.infer<typeof insertDataSourceRegistrySchema>;
 export type ProfileSnapshot = typeof profileSnapshots.$inferSelect;
 export type InsertProfileSnapshot = z.infer<typeof insertProfileSnapshotSchema>;
+
+// === Frontend-only types (não precisam de tabelas) ===
+
+export type BrandMention = {
+  id: number;
+  brandId: number;
+  campaignId: number | null;
+  creatorId: number | null;
+  platform: string;
+  mentionType: string;
+  postType: string | null;
+  postUrl: string | null;
+  thumbnailUrl: string | null;
+  caption: string | null;
+  authorUsername: string | null;
+  likes: number;
+  comments: number;
+  views: number;
+  shares: number;
+  postedAt: string | null;
+  createdAt: string | null;
+};
+
+export type UgcAsset = {
+  id: number;
+  brandId: number;
+  campaignId: number | null;
+  creatorId: number | null;
+  title: string;
+  description: string | null;
+  type: string;
+  url: string;
+  status: string;
+  tags: string[] | null;
+  createdAt: string | null;
+  usageRights?: UsageRights;
+};
+
+export type UsageRights = {
+  id: number;
+  assetId: number;
+  type: string;
+  expiresAt: string | null;
+  ads?: boolean;
+  organic?: boolean;
+  whitelist?: boolean;
+};
+
+export type AssetComment = {
+  id: number;
+  assetId: number;
+  userId: number;
+  content: string;
+  body?: string;
+  createdAt: string | null;
+};
+
+export type MonthlyLeaderboard = {
+  id: number;
+  userId: number;
+  points: number;
+  rank: number;
+  campaignsCompleted: number;
+  avgRating: number;
+  month: string;
+  year: number;
+};
+
+export type Competition = {
+  id: number;
+  campaignId: number;
+  title: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+};
+
+export type EcommerceIntegration = {
+  id: number;
+  companyId: number;
+  platform: string;
+  storeUrl: string | null;
+  shopUrl?: string | null;
+  apiKey: string | null;
+  webhookSecret?: string | null;
+  isActive: boolean;
+  lastSyncAt: string | null;
+};
+
+export type BrandScoringDefaults = {
+  pointsPerPost: number;
+  pointsPerStory: number;
+  pointsPerReel: number;
+  pointsOnTimeBonus: number;
+  pointsPer1kViews: number;
+  qualityMultiplier: number;
+  rulesJson?: any;
+  capsJson?: any;
+};

@@ -106,7 +106,6 @@ function createTourDriver() {
     nextBtnText: "Próximo",
     prevBtnText: "Anterior",
     doneBtnText: "Concluir",
-    closeBtnText: "Pular",
     progressText: "{{current}} de {{total}}",
     steps,
     onDestroyed: () => {

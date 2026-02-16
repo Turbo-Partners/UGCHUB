@@ -688,7 +688,7 @@ export function AdminDashboardContent() {
                         <p className="text-xs text-muted-foreground">Engajamento</p>
                       </div>
                     </div>
-                    <Badge variant={campaign.status === 'open' ? 'default' : 'secondary'} className="shrink-0">
+                    <Badge variant={campaign.status === 'open' ? 'secondary' : 'outline'} className="shrink-0">
                       {campaign.status === 'open' ? 'Ativa' : 'Finalizada'}
                     </Badge>
                   </motion.div>

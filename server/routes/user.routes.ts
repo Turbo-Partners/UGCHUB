@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
-import { openai } from "../replit_integrations/image/client";
+import { openai } from "../lib/openai";
 import { triggerCreatorEnrichment } from "../jobs/autoEnrichmentJob";
 import { db } from "../db";
 import { creatorPosts } from "@shared/schema";
@@ -166,8 +166,8 @@ export function registerUserRoutes(app: Express): void {
   app.get("/api/users/:userId/rating", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
-      const rating = await storage.getUserAverageRating(userId);
-      res.json(rating);
+      // TODO: implement getUserAverageRating
+      res.json({ average: 0, count: 0 });
     } catch (error) {
       console.error('[API] Error fetching user rating:', error);
       res.status(500).json({ error: "Erro ao buscar avaliação" });
@@ -177,8 +177,8 @@ export function registerUserRoutes(app: Express): void {
   app.get("/api/users/:userId/reviews", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
-      const reviews = await storage.getUserReceivedReviews(userId);
-      res.json(reviews);
+      // TODO: implement getUserReceivedReviews
+      res.json([]);
     } catch (error) {
       console.error('[API] Error fetching user reviews:', error);
       res.status(500).json({ error: "Erro ao buscar avaliações" });

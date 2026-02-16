@@ -2,16 +2,23 @@ import fs from "node:fs";
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 
+/**
+ * OpenAI Client
+ *
+ * Wrapper for OpenAI SDK.
+ * Requires OPENAI_API_KEY environment variable.
+ */
+
 function getOpenAIClient() {
-  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
-    throw new Error("AI_INTEGRATIONS_OPENAI_API_KEY is not set");
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
   }
   return new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    apiKey: process.env.OPENAI_API_KEY,
   });
 }
 
+// Lazy-loaded proxy to defer client instantiation until first use
 export const openai = new Proxy({} as OpenAI, {
   get(_target, prop, receiver) {
     const client = getOpenAIClient();
@@ -22,24 +29,31 @@ export const openai = new Proxy({} as OpenAI, {
 
 /**
  * Generate an image and return as Buffer.
- * Uses gpt-image-1 model via Replit AI Integrations.
+ * Uses dall-e-3 or dall-e-2 model.
  */
 export async function generateImageBuffer(
   prompt: string,
-  size: "1024x1024" | "512x512" | "256x256" = "1024x1024"
+  options: {
+    model?: "dall-e-3" | "dall-e-2";
+    size?: "1024x1024" | "512x512" | "256x256" | "1792x1024" | "1024x1792";
+  } = {}
 ): Promise<Buffer> {
+  const { model = "dall-e-2", size = "1024x1024" } = options;
+
   const response = await openai.images.generate({
-    model: "gpt-image-1",
+    model,
     prompt,
     size,
+    response_format: "b64_json",
   });
+
   const base64 = response.data?.[0]?.b64_json ?? "";
   return Buffer.from(base64, "base64");
 }
 
 /**
  * Edit/combine multiple images into a composite.
- * Uses gpt-image-1 model via Replit AI Integrations.
+ * Uses dall-e-2 model (dall-e-3 doesn't support edits).
  */
 export async function editImages(
   imageFiles: string[],
@@ -55,9 +69,10 @@ export async function editImages(
   );
 
   const response = await openai.images.edit({
-    model: "gpt-image-1",
+    model: "dall-e-2",
     image: images,
     prompt,
+    response_format: "b64_json",
   });
 
   const imageBase64 = response.data?.[0]?.b64_json ?? "";
@@ -69,4 +84,3 @@ export async function editImages(
 
   return imageBytes;
 }
-

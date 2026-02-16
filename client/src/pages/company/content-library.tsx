@@ -320,7 +320,7 @@ export default function ContentLibrary() {
                     <span className="ml-1">{statusConfig[asset.status]?.label}</span>
                   </Badge>
                   <span className="text-sm text-muted-foreground">
-                    {format(new Date(asset.createdAt), "dd/MM/yy", { locale: ptBR })}
+                    {asset.createdAt ? format(new Date(asset.createdAt), "dd/MM/yy", { locale: ptBR }) : '-'}
                   </span>
                 </div>
               ))}
@@ -485,7 +485,7 @@ export default function ContentLibrary() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium text-sm">{comment.user.name}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {format(new Date(comment.createdAt), "dd/MM HH:mm", { locale: ptBR })}
+                                    {comment.createdAt ? format(new Date(comment.createdAt), "dd/MM HH:mm", { locale: ptBR }) : ''}
                                   </span>
                                 </div>
                                 <p className="text-sm">{comment.body}</p>

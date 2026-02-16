@@ -418,7 +418,7 @@ export function TeamManagement() {
                               <>
                                 <DropdownMenuItem
                                   onClick={() => updateRoleMutation.mutate({ userId: member.userId, role: "owner" })}
-                                  className={member.role === "owner" ? "bg-accent" : ""}
+                                  className=""
                                   data-testid={`role-owner-${member.userId}`}
                                 >
                                   <Crown className="w-4 h-4 mr-2" />

@@ -584,18 +584,18 @@ export default function CreatorLeaderboard() {
                             {application.campaign?.description || 'Sem descrição'}
                           </p>
                           <div className="flex items-center gap-3 mt-3 text-sm text-green-500">
-                            {application.campaign?.endDate && (
+                            {application.campaign?.deadline && (
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-4 w-4" />
-                                Até {format(new Date(application.campaign.endDate), 'dd/MM')}
+                                Até {format(new Date(application.campaign.deadline), 'dd/MM')}
                               </span>
                             )}
                             {application.creatorWorkflowStatus && (
                               <Badge className="bg-green-200 dark:bg-green-800 text-green-700 dark:text-green-200">
-                                {application.creatorWorkflowStatus === 'not_started' ? 'Não iniciado' :
-                                 application.creatorWorkflowStatus === 'in_progress' ? 'Em andamento' :
-                                 application.creatorWorkflowStatus === 'delivered' ? 'Entregue' :
-                                 application.creatorWorkflowStatus === 'completed' ? 'Concluído' :
+                                {application.creatorWorkflowStatus === 'aceito' ? 'Aceito' :
+                                 application.creatorWorkflowStatus === 'producao' ? 'Em produção' :
+                                 application.creatorWorkflowStatus === 'revisao' ? 'Em revisão' :
+                                 application.creatorWorkflowStatus === 'entregue' ? 'Entregue' :
                                  application.creatorWorkflowStatus}
                               </Badge>
                             )}

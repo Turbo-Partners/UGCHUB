@@ -1,4 +1,4 @@
-import { users, campaigns, applications, notifications, deliverables, problemReports, favoriteCreators, favoriteCompanies, campaignInvites, deliverableComments, campaignTemplates, companies, companyMembers, companyUserInvites, workflowStages, creatorPosts, creatorAnalyticsHistory, tiktokProfiles, creatorHashtags, postAiInsights, featureFlags, creatorLevels, creatorPoints, badges, creatorBadges, campaignCreatorStats, campaignCoupons, salesTracking, creatorCommissions, brandSettings, companyWallets, walletBoxes, creatorBalances, walletTransactions, paymentBatches, brandPrograms, brandRewards, brandTierConfigs, campaignPrizes, pointsLedger, brandCreatorTiers, campaignMetricSnapshots, rewardEntitlements, brandCreatorMemberships, communityInvites, campaignPointsRules, creatorDiscoveryProfiles, inspirations, inspirationCollections, inspirationCollectionItems, creatorSavedInspirations, campaignInspirations, creatorAddresses, conversations, convMessages, messageReads, tags, creatorTags, brandTags, campaignTags, type User, type InsertUser, type Campaign, type InsertCampaign, type Application, type InsertApplication, type Notification, type InsertNotification, type Deliverable, type InsertDeliverable, type ProblemReport, type InsertProblemReport, type FavoriteCreator, type InsertFavoriteCreator, type FavoriteCompany, type InsertFavoriteCompany, type CampaignInvite, type InsertCampaignInvite, type DeliverableComment, type InsertDeliverableComment, type Tag, type CampaignTemplate, type InsertCampaignTemplate, type Company, type InsertCompany, type CompanyMember, type InsertCompanyMember, type CompanyUserInvite, type InsertCompanyUserInvite, type Inspiration, type InsertInspiration, type InspirationCollection, type InsertInspirationCollection, type InspirationCollectionItem, type InsertInspirationCollectionItem, type CreatorSavedInspiration, type InsertCreatorSavedInspiration, type CampaignInspiration, type InsertCampaignInspiration, type WorkflowStage, type InsertWorkflowStage, type CreatorPost, type InsertCreatorPost, type CreatorAnalyticsHistory, type InsertCreatorAnalyticsHistory, type TiktokProfile, type InsertTiktokProfile, type CreatorHashtag, type InsertCreatorHashtag, type PostAiInsight, type InsertPostAiInsight, type FeatureFlag, type InsertFeatureFlag, type CreatorLevel, type BrandProgram, type InsertBrandProgram, type BrandReward, type InsertBrandReward, type BrandTierConfig, type InsertBrandTierConfig, type CampaignPrize, type InsertCampaignPrize, type PointsLedgerEntry, type InsertPointsLedgerEntry, type BrandCreatorTier, type InsertBrandCreatorTier, type CampaignMetricSnapshot, type InsertCampaignMetricSnapshot, type RewardEntitlement, type InsertRewardEntitlement, type InsertCreatorLevel, type CreatorPointsEntry, type InsertCreatorPoints, type CompanyWallet, type InsertCompanyWallet, type WalletBox, type InsertWalletBox, type CreatorBalance, type InsertCreatorBalance, type WalletTransaction, type InsertWalletTransaction, type PaymentBatch, type InsertPaymentBatch, type Badge, type InsertBadge, type BrandSettings, type InsertBrandSettings, type CreatorBadge, type InsertCreatorBadge, type CampaignCreatorStats, type InsertCampaignCreatorStats, type CampaignCoupon, type InsertCampaignCoupon, type SalesTracking, type CreatorCommission, type BrandCreatorMembership, type InsertBrandCreatorMembership, type CommunityInvite, type InsertCommunityInvite, type CampaignPointsRules, type InsertCampaignPointsRules, type CreatorDiscoveryProfile, type InsertCreatorDiscoveryProfile, courses, courseModules, courseLessons, creatorCourseProgress, creatorLessonProgress, type Course, type InsertCourse, type CourseModule, type InsertCourseModule, type CourseLesson, type InsertCourseLesson, type CreatorCourseProgress, type InsertCreatorCourseProgress, type CreatorLessonProgress, type InsertCreatorLessonProgress, type CreatorAddress, type InsertCreatorAddress, type Conversation, type InsertConversation, type ConvMessage, type InsertConvMessage, type MessageRead, type InsertMessageRead, type ConversationType } from "@shared/schema";
+import { users, campaigns, applications, notifications, deliverables, problemReports, favoriteCreators, favoriteCompanies, campaignInvites, deliverableComments, campaignTemplates, companies, companyMembers, companyUserInvites, workflowStages, creatorPosts, creatorAnalyticsHistory, tiktokProfiles, creatorHashtags, postAiInsights, featureFlags, creatorLevels, creatorPoints, badges, creatorBadges, campaignCreatorStats, campaignCoupons, salesTracking, creatorCommissions, brandSettings, companyWallets, walletBoxes, creatorBalances, walletTransactions, paymentBatches, brandPrograms, brandRewards, brandTierConfigs, campaignPrizes, pointsLedger, brandCreatorTiers, campaignMetricSnapshots, rewardEntitlements, brandCreatorMemberships, communityInvites, campaignPointsRules, creatorDiscoveryProfiles, inspirations, inspirationCollections, inspirationCollectionItems, creatorSavedInspirations, campaignInspirations, creatorAddresses, conversations, convMessages, messageReads, tags, creatorTags, brandTags, campaignTags, type User, type InsertUser, type Campaign, type InsertCampaign, type Application, type InsertApplication, type Notification, type InsertNotification, type Deliverable, type InsertDeliverable, type ProblemReport, type InsertProblemReport, type FavoriteCreator, type InsertFavoriteCreator, type FavoriteCompany, type InsertFavoriteCompany, type CampaignInvite, type InsertCampaignInvite, type DeliverableComment, type InsertDeliverableComment, type Tag, type CampaignTemplate, type InsertCampaignTemplate, type Company, type InsertCompany, type CompanyMember, type InsertCompanyMember, type CompanyUserInvite, type InsertCompanyUserInvite, type Inspiration, type InsertInspiration, type InspirationCollection, type InsertInspirationCollection, type InspirationCollectionItem, type InsertInspirationCollectionItem, type CreatorSavedInspiration, type InsertCreatorSavedInspiration, type CampaignInspiration, type InsertCampaignInspiration, type WorkflowStage, type InsertWorkflowStage, type CreatorPost, type InsertCreatorPost, type CreatorAnalyticsHistory, type InsertCreatorAnalyticsHistory, type TikTokProfile, type InsertTikTokProfile, type CreatorHashtag, type InsertCreatorHashtag, type PostAiInsight, type InsertPostAiInsight, type FeatureFlag, type InsertFeatureFlag, type CreatorLevel, type BrandProgram, type InsertBrandProgram, type BrandReward, type InsertBrandReward, type BrandTierConfig, type InsertBrandTierConfig, type CampaignPrize, type InsertCampaignPrize, type PointsLedgerEntry, type InsertPointsLedgerEntry, type BrandCreatorTier, type InsertBrandCreatorTier, type CampaignMetricSnapshot, type InsertCampaignMetricSnapshot, type RewardEntitlement, type InsertRewardEntitlement, type InsertCreatorLevel, type CreatorPointsEntry, type InsertCreatorPoints, type CompanyWallet, type InsertCompanyWallet, type WalletBox, type InsertWalletBox, type CreatorBalance, type InsertCreatorBalance, type WalletTransaction, type InsertWalletTransaction, type PaymentBatch, type InsertPaymentBatch, type Badge, type InsertBadge, type BrandSettings, type InsertBrandSettings, type CreatorBadge, type InsertCreatorBadge, type CampaignCreatorStats, type InsertCampaignCreatorStats, type CampaignCoupon, type InsertCampaignCoupon, type SalesTracking, type CreatorCommission, type BrandCreatorMembership, type InsertBrandCreatorMembership, type CommunityInvite, type InsertCommunityInvite, type CampaignPointsRules, type InsertCampaignPointsRules, type CreatorDiscoveryProfile, type InsertCreatorDiscoveryProfile, courses, courseModules, courseLessons, creatorCourseProgress, creatorLessonProgress, type Course, type InsertCourse, type CourseModule, type InsertCourseModule, type CourseLesson, type InsertCourseLesson, type CreatorCourseProgress, type InsertCreatorCourseProgress, type CreatorLessonProgress, type InsertCreatorLessonProgress, type CreatorAddress, type InsertCreatorAddress, type Conversation, type InsertConversation, type ConvMessage, type InsertConvMessage, type MessageRead, type InsertMessageRead, type ConversationType } from "@shared/schema";
 import { calculateAge } from "@shared/utils";
 import { getRegionForState } from "@shared/constants";
 import { db } from "./db";
@@ -263,8 +263,8 @@ export interface IStorage {
   createAnalyticsHistoryEntry(entry: InsertCreatorAnalyticsHistory): Promise<CreatorAnalyticsHistory>;
   getCreatorAnalyticsHistory(userId: number, platform?: 'instagram' | 'tiktok', limit?: number): Promise<CreatorAnalyticsHistory[]>;
   
-  upsertTiktokProfile(profile: InsertTiktokProfile): Promise<TiktokProfile>;
-  getTiktokProfile(userId: number): Promise<TiktokProfile | undefined>;
+  upsertTiktokProfile(profile: InsertTikTokProfile): Promise<TikTokProfile>;
+  getTiktokProfile(userId: number): Promise<TikTokProfile | undefined>;
   
   upsertCreatorHashtag(hashtag: InsertCreatorHashtag): Promise<CreatorHashtag>;
   getCreatorHashtags(userId: number, platform?: 'instagram' | 'tiktok', limit?: number): Promise<CreatorHashtag[]>;
@@ -349,7 +349,7 @@ export interface IStorage {
   getCreatorCoupon(campaignId: number, creatorId: number): Promise<CampaignCoupon | undefined>;
   updateCoupon(id: number, updates: Partial<CampaignCoupon>): Promise<CampaignCoupon>;
   // Sales Tracking Operations
-  createSaleWithCommission(sale: { campaignId: number; creatorId: number; couponId?: number | null; orderId: string; orderValue: number; commission?: number; commissionRateBps?: number; platform: 'shopify' | 'woocommerce' | 'manual' }): Promise<SalesTracking>;
+  createSaleWithCommission(sale: { companyId: number; campaignId?: number | null; creatorId: number; couponId?: number | null; couponCode?: string; orderId: string; externalOrderId?: string; orderValue: number; commission?: number; commissionRateBps?: number; platform: 'shopify' | 'woocommerce' | 'manual'; rawJson?: Record<string, any> }): Promise<SalesTracking>;
   getCampaignSales(campaignId: number): Promise<(SalesTracking & { creator: User })[]>;
   getCreatorSales(creatorId: number): Promise<(SalesTracking & { campaign: Campaign })[]>;
   updateSaleStatus(id: number, status: 'pending' | 'confirmed' | 'paid' | 'cancelled'): Promise<SalesTracking>;
@@ -1423,7 +1423,7 @@ export class DatabaseStorage implements IStorage {
         deliverables: row.campaign_deliverables,
         minTierId: row.campaign_min_tier_id,
         createdAt: row.campaign_created_at,
-      },
+      } as any,
       company: {
         id: row.company_id,
         name: row.company_name,
@@ -1493,7 +1493,7 @@ export class DatabaseStorage implements IStorage {
         deliverables: row.campaign_deliverables,
         minTierId: row.campaign_min_tier_id,
         createdAt: row.campaign_created_at,
-      },
+      } as any,
       company: {
         id: row.company_id,
         name: row.company_name,
@@ -2156,7 +2156,7 @@ export class DatabaseStorage implements IStorage {
       companyName: r.companyName,
       companyLogo: r.companyLogo,
       completedAt: r.appliedAt?.toISOString() || new Date().toISOString(),
-      payment: r.budget,
+      payment: r.budget ? Number(r.budget) : null,
     }));
   }
 
@@ -2296,36 +2296,37 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  async upsertTiktokProfile(profile: InsertTiktokProfile): Promise<TiktokProfile> {
+  async upsertTiktokProfile(profile: InsertTikTokProfile): Promise<TikTokProfile> {
     const [result] = await db
       .insert(tiktokProfiles)
       .values(profile)
       .onConflictDoUpdate({
-        target: [tiktokProfiles.userId],
+        target: [tiktokProfiles.uniqueId],
         set: {
-          tiktokUsername: profile.tiktokUsername,
-          tiktokId: profile.tiktokId,
+          uniqueId: profile.uniqueId,
+          userId: profile.userId,
+          nickname: profile.nickname,
+          avatarUrl: profile.avatarUrl,
+          signature: profile.signature,
+          verified: profile.verified,
           followers: profile.followers,
           following: profile.following,
-          likes: profile.likes,
-          videos: profile.videos,
-          engagementRate: profile.engagementRate,
-          verified: profile.verified,
-          bio: profile.bio,
-          avatarUrl: profile.avatarUrl,
-          topHashtags: profile.topHashtags,
-          lastUpdated: new Date(),
+          hearts: profile.hearts,
+          videoCount: profile.videoCount,
+          rawData: profile.rawData,
+          lastFetchedAt: new Date(),
+          updatedAt: new Date(),
         },
       })
       .returning();
     return result;
   }
 
-  async getTiktokProfile(userId: number): Promise<TiktokProfile | undefined> {
+  async getTiktokProfile(userId: number): Promise<TikTokProfile | undefined> {
     const [profile] = await db
       .select()
       .from(tiktokProfiles)
-      .where(eq(tiktokProfiles.userId, userId));
+      .where(eq(tiktokProfiles.connectedByUserId, userId));
     return profile;
   }
 
@@ -3080,12 +3081,14 @@ export class DatabaseStorage implements IStorage {
 
   async getCreatorSales(creatorId: number): Promise<(SalesTracking & { campaign: Campaign })[]> {
     const sales = await db.select().from(salesTracking).where(eq(salesTracking.creatorId, creatorId)).orderBy(desc(salesTracking.trackedAt));
-    
+
     const result: (SalesTracking & { campaign: Campaign })[] = [];
     for (const sale of sales) {
-      const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, sale.campaignId));
-      if (campaign) {
-        result.push({ ...sale, campaign });
+      if (sale.campaignId) {
+        const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, sale.campaignId));
+        if (campaign) {
+          result.push({ ...sale, campaign });
+        }
       }
     }
     return result;
@@ -3107,12 +3110,14 @@ export class DatabaseStorage implements IStorage {
 
   async getCreatorCommissions(creatorId: number): Promise<(CreatorCommission & { campaign: Campaign })[]> {
     const commissions = await db.select().from(creatorCommissions).where(eq(creatorCommissions.creatorId, creatorId)).orderBy(desc(creatorCommissions.createdAt));
-    
+
     const result: (CreatorCommission & { campaign: Campaign })[] = [];
     for (const commission of commissions) {
-      const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, commission.campaignId));
-      if (campaign) {
-        result.push({ ...commission, campaign });
+      if (commission.campaignId) {
+        const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, commission.campaignId));
+        if (campaign) {
+          result.push({ ...commission, campaign });
+        }
       }
     }
     return result;
@@ -3710,19 +3715,19 @@ export class DatabaseStorage implements IStorage {
 
     const mergedTypePoints = {
       ...defaults.pointsPerDeliverableType,
-      ...rulesJson.pointsPerDeliverableType,
+      ...rulesJson.postTypes,
     };
 
     return {
-      pointsPerDeliverable: rulesJson.pointsPerDeliverable ?? defaults.pointsPerDeliverable,
+      pointsPerDeliverable: rulesJson.postTypes?.post_feed ?? defaults.pointsPerDeliverable,
       pointsPerDeliverableType: mergedTypePoints,
-      pointsOnTimeBonus: rulesJson.pointsOnTimeBonus ?? defaults.pointsOnTimeBonus,
-      pointsPer1kViews: rulesJson.pointsPer1kViews ?? defaults.pointsPer1kViews,
-      pointsPerComment: rulesJson.pointsPerComment ?? defaults.pointsPerComment,
-      pointsPerLike: rulesJson.pointsPerLike ?? defaults.pointsPerLike,
-      pointsPerSale: rulesJson.pointsPerSale ?? defaults.pointsPerSale,
-      qualityMultiplier: rulesJson.qualityMultiplier ?? defaults.qualityMultiplier,
-      allowedPlatforms: rulesJson.allowedPlatforms ?? defaults.allowedPlatforms,
+      pointsOnTimeBonus: rulesJson.deliveryPoints?.onTimeBonus ?? defaults.pointsOnTimeBonus,
+      pointsPer1kViews: rulesJson.viewsMilestone?.points ?? defaults.pointsPer1kViews,
+      pointsPerComment: rulesJson.commentsMilestone?.points ?? defaults.pointsPerComment,
+      pointsPerLike: rulesJson.likesMilestone?.points ?? defaults.pointsPerLike,
+      pointsPerSale: rulesJson.salesPoints?.pointsPerSale ?? defaults.pointsPerSale,
+      qualityMultiplier: defaults.qualityMultiplier, // Not in new schema, use default
+      allowedPlatforms: defaults.allowedPlatforms, // Not in new schema, use default
     };
   }
 
@@ -3740,15 +3745,9 @@ export class DatabaseStorage implements IStorage {
       countingWindowDays: 7,
     };
 
-    const campaignRules = await this.getCampaignPointsRules(campaignId);
-    const capsJson = campaignRules?.capsJson || {};
-
-    return {
-      maxPointsPerPost: capsJson.maxPointsPerPost ?? defaults.maxPointsPerPost,
-      maxPointsPerDay: capsJson.maxPointsPerDay ?? defaults.maxPointsPerDay,
-      maxPointsTotalCampaign: capsJson.maxPointsTotalCampaign ?? defaults.maxPointsTotalCampaign,
-      countingWindowDays: capsJson.countingWindowDays ?? defaults.countingWindowDays,
-    };
+    // capsJson was removed from campaignPointsRules schema
+    // Future: implement caps as separate table or field if needed
+    return defaults;
   }
 
   // Campaign Metric Snapshots

@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { users, instagramAccounts, instagramProfiles, instagramMessages, instagramContacts } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
+import { objectStorageClient } from "../lib/object-storage";
 
 const FACEBOOK_GRAPH_BASE_URL = "https://graph.facebook.com/v21.0";
 
@@ -528,7 +528,7 @@ export async function batchGetOrFetchProfilePics(usernames: string[]): Promise<P
             profilePicOriginalUrl: apifyData.profilePicUrl,
             fullName: apifyData.fullName || null,
             isVerified: apifyData.isVerified || false,
-            followersCount: apifyData.followersCount || null,
+            followers: apifyData.followersCount || null,
             lastFetchedAt: new Date(),
           }).onConflictDoUpdate({
             target: [instagramProfiles.username, instagramProfiles.ownerType],

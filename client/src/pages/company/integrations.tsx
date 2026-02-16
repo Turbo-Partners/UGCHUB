@@ -696,7 +696,7 @@ export function IntegrationsFullContent({ embedded = false }: { embedded?: boole
     const platform = platformDefinitions.find(p => p.id === integration.platform);
     if (!platform?.webhookPath) return;
     const baseUrl = window.location.origin;
-    const webhookUrl = `${baseUrl}${platform.webhookPath}${encodeURIComponent(integration.shopUrl)}`;
+    const webhookUrl = `${baseUrl}${platform.webhookPath}${encodeURIComponent(integration.shopUrl || '')}`;
     navigator.clipboard.writeText(webhookUrl);
     toast({ title: "URL do webhook copiada!" });
   };

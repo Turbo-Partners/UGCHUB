@@ -1,22 +1,18 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
 /**
- * Gemini AI Client via Replit AI Integrations
- * 
- * This uses Replit's AI Integrations service, which provides Gemini-compatible 
- * API access without requiring your own API key. Charges are billed to your Replit credits.
- * 
- * Supported models:
- * - gemini-2.5-flash: Fast, good for daily use and high-volume tasks
- * - gemini-2.5-pro: Best for complex reasoning and coding
- * - gemini-2.5-flash-image: Native image generation
+ * Gemini AI Client
+ *
+ * Wrapper for Google Gemini API using Application Default Credentials.
+ * Requires GOOGLE_GENAI_API_KEY environment variable.
  */
+
+if (!process.env.GOOGLE_GENAI_API_KEY) {
+  console.warn("GOOGLE_GENAI_API_KEY is not set. Gemini features will fail at runtime.");
+}
+
 export const gemini = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
+  apiKey: process.env.GOOGLE_GENAI_API_KEY || "",
 });
 
 export type GeminiModel = "gemini-2.5-flash" | "gemini-2.5-pro" | "gemini-2.5-flash-image";

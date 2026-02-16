@@ -152,7 +152,7 @@ export default function TemplatesPage() {
       description: template.description || "",
       title: template.title,
       campaignDescription: template.campaignDescription,
-      requirements: template.requirements,
+      requirements: template.requirements.join("\n"),
       budget: template.budget,
       deadline: template.deadline,
       creatorsNeeded: template.creatorsNeeded,

@@ -657,9 +657,9 @@ export default function SocialListening() {
                           </span>
                         )}
                         <div className="flex items-center gap-2">
-                          <a 
-                            href={post.postUrl} 
-                            target="_blank" 
+                          <a
+                            href={post.postUrl || undefined}
+                            target="_blank"
                             rel="noopener noreferrer"
                           >
                             <Button variant="ghost" size="sm">
@@ -726,7 +726,7 @@ export default function SocialListening() {
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <a href={post.postUrl} target="_blank" rel="noopener noreferrer">
+                                <a href={post.postUrl || undefined} target="_blank" rel="noopener noreferrer">
                                   <Button variant="ghost" size="sm">
                                     <ExternalLink className="h-4 w-4" />
                                   </Button>

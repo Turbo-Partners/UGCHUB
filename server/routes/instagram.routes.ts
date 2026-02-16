@@ -2236,11 +2236,11 @@ export function registerInstagramRoutes(app: Express) {
       }));
       normalized.sort((a: any, b: any) => b.sortTimestamp - a.sortTimestamp);
 
-      const usernamesWithoutPic = [...new Set(
+      const usernamesWithoutPic = Array.from(new Set(
         normalized
           .filter((c: any) => c.participantUsername && !c.participantProfilePic)
           .map((c: any) => (c.participantUsername as string).toLowerCase())
-      )];
+      ));
 
       if (usernamesWithoutPic.length > 0) {
         (async () => {

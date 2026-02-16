@@ -101,7 +101,7 @@ export function IntegrationsContent() {
   const copyWebhookUrl = (integration: EcommerceIntegration) => {
     const baseUrl = window.location.origin;
     const platform = platformInfo[integration.platform as keyof typeof platformInfo];
-    const webhookUrl = `${baseUrl}${platform.webhookPath}${encodeURIComponent(integration.shopUrl)}`;
+    const webhookUrl = `${baseUrl}${platform.webhookPath}${encodeURIComponent(integration.shopUrl || '')}`;
     navigator.clipboard.writeText(webhookUrl);
     toast({ title: "URL do webhook copiada!" });
   };
@@ -204,7 +204,7 @@ export function IntegrationsContent() {
             const platform = platformInfo[integration.platform as keyof typeof platformInfo];
             const Icon = platform.icon;
             const baseUrl = window.location.origin;
-            const webhookUrl = `${baseUrl}${platform.webhookPath}${encodeURIComponent(integration.shopUrl)}`;
+            const webhookUrl = `${baseUrl}${platform.webhookPath}${encodeURIComponent(integration.shopUrl || '')}`;
 
             return (
               <Card key={integration.id} data-testid={`integration-card-${integration.id}`}>

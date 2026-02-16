@@ -2,6 +2,7 @@ import { db } from "../db";
 import { companies, type StructuredBriefing, type BrandCanvas } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
+import { sendGeminiMessage } from "../lib/gemini";
 
 /**
  * Re-enrich company CNPJ data from ReceitaWS.
@@ -273,8 +274,6 @@ export async function regenerateStructuredBriefing(companyId: number): Promise<b
   try {
     const company = await storage.getCompany(companyId);
     if (!company) return false;
-
-    const { sendGeminiMessage } = await import("../replit_integrations/gemini");
 
     const aiInput = buildAIInput(company);
 
