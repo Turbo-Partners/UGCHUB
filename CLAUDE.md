@@ -23,7 +23,7 @@ npm run build            # Build (Vite → dist/public, esbuild → dist/index.j
 npm run start            # Production (cross-env NODE_ENV=production node dist/index.js)
 npm run check            # TypeScript check (tsc com noEmit via tsconfig)
 npm run db:push          # Push schema → database (drizzle-kit push)
-npm run test             # vitest run (22 tests, 3 files)
+npm run test             # vitest run (47 tests, 4 files)
 npm run test:watch       # vitest watch mode
 ```
 
@@ -35,26 +35,26 @@ npm run test:watch       # vitest watch mode
 
 ```
 client/src/
-  ├── pages/             # ~100 pages (creator/24, company/41, admin/9, public, auth, misc)
+  ├── pages/             # ~111 pages (creator/33, company/41, admin/9, public, auth, misc)
   ├── components/        # ~47 componentes custom + gamification/ + ui/ (72 shadcn)
   ├── hooks/             # 6 hooks (toast, upload, facebook-sdk, tiktok, view-preference, mobile)
   └── lib/               # queryClient, provider, brand-context, nav-config, routes, utils, cep
 server/
   ├── routes.ts          # Arquivo principal (~10.000 linhas, ~300 endpoints)
-  ├── routes/            # 14 módulos de rotas (~10.000 linhas, ~200 endpoints)
-  ├── services/          # 15 serviços de negócio
-  ├── jobs/              # 5 background jobs (cron)
+  ├── routes/            # 15 módulos de rotas (~10.000 linhas, ~200 endpoints)
+  ├── services/          # 16 serviços de negócio
+  ├── jobs/              # 6 background jobs (cron)
   ├── auth.ts            # Passport.js (local + Google OAuth)
   ├── storage.ts         # Data access layer (~5.900 linhas, 100+ métodos)
   ├── websocket.ts       # WebSocket server (/ws/notifications)
   ├── email.ts           # SendGrid templates (~1.750 linhas)
   ├── db.ts              # Drizzle + pg Pool
-  ├── objectStorage.ts   # Google Cloud Storage (upload de mídia)
+  ├── lib/object-storage.ts # Google Cloud Storage (upload de mídia)
   ├── contract-pdf.ts    # Geração de contratos PDF (PDFKit)
   ├── assinafy.ts        # Integração Assinafy (assinatura digital)
   └── apify-service.ts   # Apify TikTok service (legacy)
 shared/
-  ├── schema.ts          # Single source of truth: 14 schemas, 91 tabelas, Zod, types (~3.400 linhas)
+  ├── schema.ts          # Single source of truth: 14 schemas, 91 tabelas, Zod, types (~3.800 linhas)
   ├── constants.ts       # Enums (nichos, plataformas, formatos, estados BR)
   └── utils.ts           # Utilitários compartilhados
 migrations/              # Drizzle migration files
@@ -146,7 +146,7 @@ migrations/              # Drizzle migration files
 | `tiktok.routes.ts` | 6 | OAuth, perfil, vídeos, métricas |
 | `comments.routes.ts` | 6 | Gestão de comentários Instagram |
 | `stripe.routes.ts` | 4 | Checkout, webhooks, status |
-| `brand-canvas.routes.ts` | 2 | Brand Canvas AI-powered |
+| `brand-canvas.routes.ts` | 9 | Brand Canvas V2 AI-powered (pipeline, visual identity, voice) |
 
 ### Services Reference
 
@@ -167,6 +167,7 @@ migrations/              # Drizzle migration files
 | **Creator Enrichment** | `services/creator-enrichment.ts` | BD API (free) → Apify (paid) fallback |
 | **Company Enrichment** | `services/company-enrichment.ts` | CNPJ (ReceitaWS), website (Apify), Instagram, Gemini AI |
 | **Stripe** | `services/stripe.ts` | Checkout sessions, webhook handling |
+| **Brand Canvas** | `services/brand-canvas.ts` | AI pipeline V2: visual identity, voice, content strategy (Gemini + Claude) |
 | **Cleanup** | `services/cleanup.ts` | Auto-cleanup: notifications (90d), logs (30d) |
 
 ### Storage Layer (`server/storage.ts`)
@@ -198,6 +199,7 @@ Interface `IStorage` com 100+ métodos. Categorias principais:
 | `weeklyEmailJob.ts` | Segunda 9h (`0 9 * * 1`) | Relatório semanal para empresas (applications, deliverables) |
 | `autoEnrichmentJob.ts` | Event-driven + diário | Enriquece perfis de creators (pics + dados) |
 | `companyEnrichmentJob.ts` | Domingo 3h (`0 3 * * 0`) | Re-enriquece empresas (CNPJ, website, Instagram) |
+| `brandCanvasRefreshJob.ts` | 1o Domingo/mês 4h BRT (`0 7 1-7 * 0`) | Refresh mensal de Brand Canvas (re-enriquecimento IA) |
 | `cleanup` | A cada 24h | Remove notificações antigas e logs |
 | `apifySyncJob.ts` | **DISABLED** | Sync batch de perfis Instagram |
 
@@ -352,8 +354,9 @@ const isAdmin = (req, res, next) => {
 
 **Framework**: Vitest 4.0 + Supertest 7.2 | **Config**: `vitest.config.ts`
 
-**3 test files** em `server/__tests__/`:
+**4 test files** em `server/__tests__/`:
 - `auth.test.ts` (8 tests) — register, login, logout, user update
+- `brand-canvas.test.ts` (25 tests) — pipeline steps, API endpoints, job scheduling
 - `messaging.test.ts` (8 tests) — DM sync, profile pic hierarchy, rate limiting
 - `stripe.test.ts` (6 tests) — status, checkout creation, webhook validation
 

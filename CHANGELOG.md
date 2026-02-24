@@ -5,6 +5,38 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.3.0] - 2026-02-16
+
+### Adicionado
+- **Brand Canvas V2**: rebuild completo com pipeline IA (Gemini + Claude), visual identity, voice, content strategy
+- 9 endpoints Brand Canvas em `server/routes/brand-canvas.routes.ts`
+- Service dedicado `server/services/brand-canvas.ts` com pipeline de 6 steps
+- Job de refresh mensal `server/jobs/brandCanvasRefreshJob.ts`
+- 12 componentes frontend para Brand Canvas em `client/src/components/brand-canvas/`
+- 25 testes automatizados para Brand Canvas (`brand-canvas.test.ts`)
+
+### Alterado
+- `BrandCanvas` agora usa modelo V2 (aliased para backward compat)
+
+## [1.2.0] - 2026-02-16
+
+### Corrigido
+- 233 erros TypeScript corrigidos (build limpo)
+- Migracão de `server/replit_integrations/` para `server/lib/`
+
+### Adicionado
+- 8 tipos frontend-only no schema: `BrandMention`, `UgcAsset`, `EcommerceIntegration`, etc.
+
+### Removido
+- Pasta `server/replit_integrations/` (legacy Replit)
+- Dependencias mortas: `memorystore`, `tailwindcss-animate`, `@replit/*` plugins
+
+## [1.1.2] - 2026-02-14
+
+### Alterado
+- Refatoracao do company-profile em componentes modulares
+- `CLAUDE.md` reescrito do zero com numeros corrigidos e estrutura completa
+
 ## [1.1.1] - 2026-02-11
 
 ### Removido
