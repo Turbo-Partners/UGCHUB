@@ -5122,6 +5122,27 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
         joinedAt: null,
       });
 
+      // Notify company owner about join request
+      try {
+        const company = await storage.getCompany(companyId);
+        if (company) {
+          const notification = await storage.createNotification({
+            userId: company.createdByUserId,
+            type: 'community_join_request',
+            title: 'Solicitação de entrada na comunidade',
+            message: `${req.user!.name} solicitou entrada na sua comunidade`,
+            actionUrl: `/company/brand/${companyId}/community`,
+            isRead: false,
+          });
+          const { notificationWS } = await import('./websocket');
+          if (notificationWS) {
+            notificationWS.sendToUser(company.createdByUserId, notification);
+          }
+        }
+      } catch (notifError) {
+        console.error('[Notification] Error sending community_join_request:', notifError);
+      }
+
       res.json({ success: true });
     } catch (error) {
       console.error('[API] Error requesting membership:', error);
@@ -6091,7 +6112,25 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     } catch (emailError) {
       console.error('[Email] Failed to send deliverable approved email:', emailError);
     }
-    
+
+    // In-app notification for creator
+    try {
+      const notification = await storage.createNotification({
+        userId: application.creatorId,
+        type: 'deliverable_approved',
+        title: 'Entregável aprovado!',
+        message: `Seu entregável para a campanha "${campaign.title}" foi aprovado`,
+        actionUrl: `/campaigns/${campaign.id}/workspace`,
+        isRead: false,
+      });
+      const { notificationWS } = await import('./websocket');
+      if (notificationWS) {
+        notificationWS.sendToUser(application.creatorId, notification);
+      }
+    } catch (notifError) {
+      console.error('[Notification] Error sending deliverable_approved:', notifError);
+    }
+
     res.json(updated);
   });
 
@@ -6114,6 +6153,25 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     const { feedback } = req.body;
     // TODO: implement feedback field in deliverables schema
     const updated = deliverable;
+
+    // In-app notification for creator
+    try {
+      const notification = await storage.createNotification({
+        userId: application.creatorId,
+        type: 'deliverable_rejected',
+        title: 'Alterações solicitadas no entregável',
+        message: `A empresa solicitou alterações no seu entregável para a campanha "${campaign.title}"`,
+        actionUrl: `/campaigns/${campaign.id}/workspace`,
+        isRead: false,
+      });
+      const { notificationWS } = await import('./websocket');
+      if (notificationWS) {
+        notificationWS.sendToUser(application.creatorId, notification);
+      }
+    } catch (notifError) {
+      console.error('[Notification] Error sending deliverable_rejected:', notifError);
+    }
+
     res.json(updated);
   });
 
@@ -7586,22 +7644,43 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
     // Auto-generate coupon for this creator+brand relationship
     const company = await storage.getCompany(invite.companyId);
     const creator = await storage.getUser(req.user!.id);
-    
+
     if (company && creator && creator.instagram) {
       const prefix = company.name.substring(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, '');
       const instagram = creator.instagram.replace('@', '').toUpperCase().substring(0, 10);
       const random = Math.random().toString(36).substring(2, 6).toUpperCase();
       const couponCode = `${prefix}_${instagram}_${random}`;
-      
+
       // We'll create a community coupon (without campaign association)
       // This requires extending the schema, for now we log it
       console.log(`Generated community coupon for creator ${creator.id}: ${couponCode}`);
     }
-    
-    res.json({ 
-      success: true, 
+
+    // Notify company owner about new member
+    try {
+      if (company) {
+        const creatorName = creator?.name || req.user!.name || 'Um creator';
+        const notification = await storage.createNotification({
+          userId: company.createdByUserId,
+          type: 'community_member_joined',
+          title: 'Novo membro na comunidade',
+          message: `${creatorName} entrou na sua comunidade`,
+          actionUrl: `/company/brand/${invite.companyId}/community`,
+          isRead: false,
+        });
+        const { notificationWS } = await import('./websocket');
+        if (notificationWS) {
+          notificationWS.sendToUser(company.createdByUserId, notification);
+        }
+      }
+    } catch (notifError) {
+      console.error('[Notification] Error sending community_member_joined:', notifError);
+    }
+
+    res.json({
+      success: true,
       membership,
-      message: "Você agora faz parte da comunidade!" 
+      message: "Você agora faz parte da comunidade!"
     });
   });
 
@@ -7855,9 +7934,31 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
       } catch (gamificationError) {
         console.error('[Gamification] Error recording community_joined event:', gamificationError);
       }
-      
+
+      // Notify company owner about new member
+      try {
+        const company = await storage.getCompany(invite.companyId);
+        const creator = await storage.getUser(req.user!.id);
+        if (company) {
+          const notification = await storage.createNotification({
+            userId: company.createdByUserId,
+            type: 'community_member_joined',
+            title: 'Novo membro na comunidade',
+            message: `${creator?.name || req.user!.name || 'Um creator'} entrou na sua comunidade`,
+            actionUrl: `/company/brand/${invite.companyId}/community`,
+            isRead: false,
+          });
+          const { notificationWS } = await import('./websocket');
+          if (notificationWS) {
+            notificationWS.sendToUser(company.createdByUserId, notification);
+          }
+        }
+      } catch (notifError) {
+        console.error('[Notification] Error sending community_member_joined:', notifError);
+      }
+
       res.json({ success: true, membership });
-      
+
     } else if (type === "campaign") {
       const invite = await storage.getCampaignInvite(id);
       

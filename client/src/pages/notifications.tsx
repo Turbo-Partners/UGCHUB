@@ -24,6 +24,10 @@ import {
   Loader2,
   Check,
   ExternalLink,
+  Users,
+  UserPlus,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import type { Notification } from "@shared/schema";
 
@@ -41,6 +45,10 @@ const notificationIcons: Record<string, React.ReactNode> = {
   review_revealed: <Star className="h-5 w-5 text-amber-500 fill-amber-500" />,
   seeding_sent: <Package className="h-5 w-5 text-orange-500" />,
   seeding_received: <Package className="h-5 w-5 text-green-500" />,
+  community_join_request: <UserPlus className="h-5 w-5 text-violet-500" />,
+  community_member_joined: <Users className="h-5 w-5 text-emerald-500" />,
+  deliverable_approved: <ThumbsUp className="h-5 w-5 text-green-500" />,
+  deliverable_rejected: <ThumbsDown className="h-5 w-5 text-orange-500" />,
 };
 
 export default function NotificationsPage() {

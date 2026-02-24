@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Mail, CheckCircle, XCircle, Megaphone, MessageSquare, UserPlus, FileText, Gift, Instagram } from 'lucide-react';
+import { Bell, Mail, CheckCircle, XCircle, Megaphone, MessageSquare, UserPlus, FileText, Gift, Instagram, Users, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -34,7 +34,7 @@ function formatDateSafe(dateInput: string | Date | undefined | null): string {
   }
 }
 
-type NotificationType = 
+type NotificationType =
   | 'campaign_invite'
   | 'application_accepted'
   | 'application_rejected'
@@ -47,6 +47,8 @@ type NotificationType =
   | 'deliverable_approved'
   | 'deliverable_rejected'
   | 'new_instagram_post'
+  | 'community_join_request'
+  | 'community_member_joined'
   | 'general';
 
 interface NotificationStyle {
@@ -111,13 +113,39 @@ function getNotificationStyle(type: string): NotificationStyle {
         icon: <FileText className="h-4 w-4 text-indigo-600" />,
       };
     case 'deliverable_created':
-    case 'deliverable_approved':
-    case 'deliverable_rejected':
       return {
         bgColor: 'bg-teal-50',
         borderColor: 'border-l-4 border-l-teal-400',
         iconBg: 'bg-teal-100',
         icon: <FileText className="h-4 w-4 text-teal-600" />,
+      };
+    case 'deliverable_approved':
+      return {
+        bgColor: 'bg-green-50',
+        borderColor: 'border-l-4 border-l-green-400',
+        iconBg: 'bg-green-100',
+        icon: <ThumbsUp className="h-4 w-4 text-green-600" />,
+      };
+    case 'deliverable_rejected':
+      return {
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-l-4 border-l-orange-400',
+        iconBg: 'bg-orange-100',
+        icon: <ThumbsDown className="h-4 w-4 text-orange-600" />,
+      };
+    case 'community_join_request':
+      return {
+        bgColor: 'bg-violet-50',
+        borderColor: 'border-l-4 border-l-violet-400',
+        iconBg: 'bg-violet-100',
+        icon: <UserPlus className="h-4 w-4 text-violet-600" />,
+      };
+    case 'community_member_joined':
+      return {
+        bgColor: 'bg-emerald-50',
+        borderColor: 'border-l-4 border-l-emerald-400',
+        iconBg: 'bg-emerald-100',
+        icon: <Users className="h-4 w-4 text-emerald-600" />,
       };
     case 'new_instagram_post':
       return {
@@ -279,7 +307,11 @@ export function NotificationBell() {
             
             setNotifications(prev => [safeNotification, ...prev]);
             setUnreadCount(prev => prev + 1);
-            
+
+            // Invalidate notification queries for layout badge
+            queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+
             if (notification.type === 'new_campaign') {
               queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
             } else if (notification.type === 'new_applicant') {

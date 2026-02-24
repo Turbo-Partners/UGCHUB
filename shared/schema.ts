@@ -797,7 +797,7 @@ export const notifications = systemSchema.table("notifications", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   type: text("type", { 
-    enum: ["new_campaign", "application_accepted", "application_rejected", "new_applicant", "message", "workflow_update", "deliverable_uploaded", "campaign_invite", "favorite_company_campaign", "review_reminder", "review_revealed", "seeding_sent", "seeding_received", "new_instagram_post"] 
+    enum: ["new_campaign", "application_accepted", "application_rejected", "new_applicant", "message", "workflow_update", "deliverable_uploaded", "campaign_invite", "favorite_company_campaign", "review_reminder", "review_revealed", "seeding_sent", "seeding_received", "new_instagram_post", "community_join_request", "community_member_joined", "deliverable_approved", "deliverable_rejected"]
   }).notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),

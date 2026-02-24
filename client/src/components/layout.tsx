@@ -168,6 +168,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const unreadMessageCount = unreadMessageData?.count || 0;
 
+  // Fetch unread notification count for Bell badge
+  const { data: unreadNotificationData } = useQuery<{ count: number }>({
+    queryKey: ["/api/notifications/unread-count"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications/unread-count", { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    enabled: !!user,
+    refetchInterval: 30000,
+    staleTime: 0,
+  });
+
+  const unreadNotificationCount = unreadNotificationData?.count || 0;
+
   const autoSyncTriggeredRef = useRef(false);
   useEffect(() => {
     if (isCompany && user?.id && !autoSyncTriggeredRef.current) {
@@ -623,10 +638,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <TooltipTrigger asChild>
                     <Link href="/notifications">
                       <button
-                        className="p-2 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+                        className="relative p-2 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
                         data-testid="button-sidebar-notifications"
                       >
                         <Bell className="h-3.5 w-3.5" />
+                        {unreadNotificationCount > 0 && (
+                          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-semibold">
+                            {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                          </span>
+                        )}
                       </button>
                     </Link>
                   </TooltipTrigger>
@@ -734,10 +754,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
               <Link href="/notifications">
                 <button
-                  className="p-2.5 rounded-xl bg-muted/50 text-muted-foreground transition-all"
+                  className="relative p-2.5 rounded-xl bg-muted/50 text-muted-foreground transition-all"
                   data-testid="button-sidebar-notifications-mobile"
                 >
                   <Bell className="h-4 w-4" />
+                  {unreadNotificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-semibold">
+                      {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                    </span>
+                  )}
                 </button>
               </Link>
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import {
   Dialog,
@@ -12,10 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Store, Loader2, Building2, MapPin, Phone, Mail, Globe, Instagram } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Store, Loader2, Globe, Instagram, Sparkles } from "lucide-react";
 
 interface CreateCompanyModalProps {
   open: boolean;
@@ -24,42 +23,23 @@ interface CreateCompanyModalProps {
 
 interface CompanyFormData {
   name: string;
-  tradeName: string;
-  description: string;
   cnpj: string;
   phone: string;
-  email: string;
   instagram: string;
   website: string;
-  cep: string;
-  street: string;
-  number: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  complement: string;
 }
 
 export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalProps) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [formData, setFormData] = useState<CompanyFormData>({
     name: "",
-    tradeName: "",
-    description: "",
     cnpj: "",
     phone: "",
-    email: "",
     instagram: "",
     website: "",
-    cep: "",
-    street: "",
-    number: "",
-    neighborhood: "",
-    city: "",
-    state: "",
-    complement: "",
   });
-  const [isLoadingCep, setIsLoadingCep] = useState(false);
+  const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
 
   const formatCNPJ = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -82,32 +62,25 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
       .replace(/(\d{5})(\d)/, "$1-$2");
   };
 
-  const formatCEP = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 8);
-    return digits.replace(/(\d{5})(\d)/, "$1-$2");
-  };
+  const handleCnpjBlur = async () => {
+    const cnpjDigits = formData.cnpj.replace(/\D/g, "");
+    if (cnpjDigits.length !== 14) return;
 
-  const handleCepBlur = async () => {
-    const cepDigits = formData.cep.replace(/\D/g, "");
-    if (cepDigits.length !== 8) return;
-
-    setIsLoadingCep(true);
+    setIsLoadingCnpj(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
-      const data = await res.json();
-      if (!data.erro) {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`);
+      if (res.ok) {
+        const data = await res.json();
         setFormData(prev => ({
           ...prev,
-          street: data.logradouro || prev.street,
-          neighborhood: data.bairro || prev.neighborhood,
-          city: data.localidade || prev.city,
-          state: data.uf || prev.state,
+          name: prev.name || data.razao_social || "",
+          phone: prev.phone || (data.ddd_telefone_1 ? formatPhone(data.ddd_telefone_1) : ""),
         }));
       }
     } catch (error) {
-      console.error("Erro ao buscar CEP:", error);
+      console.error("Erro ao buscar CNPJ:", error);
     } finally {
-      setIsLoadingCep(false);
+      setIsLoadingCnpj(false);
     }
   };
 
@@ -115,8 +88,8 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
     let formattedValue = value;
     if (field === "cnpj") formattedValue = formatCNPJ(value);
     if (field === "phone") formattedValue = formatPhone(value);
-    if (field === "cep") formattedValue = formatCEP(value);
-    
+    if (field === "instagram") formattedValue = value.replace(/^@/, "");
+
     setFormData(prev => ({ ...prev, [field]: formattedValue }));
   };
 
@@ -143,23 +116,13 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
       queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
       setFormData({
         name: "",
-        tradeName: "",
-        description: "",
         cnpj: "",
         phone: "",
-        email: "",
         instagram: "",
         website: "",
-        cep: "",
-        street: "",
-        number: "",
-        neighborhood: "",
-        city: "",
-        state: "",
-        complement: "",
       });
       onOpenChange(false);
-      window.location.reload();
+      setLocation("/company/onboarding");
     },
     onError: (error: Error) => {
       toast({
@@ -180,24 +143,22 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
       });
       return;
     }
-    
-    const submitData: Partial<CompanyFormData> = {};
+
+    const submitData: Record<string, string> = {};
     Object.entries(formData).forEach(([key, value]) => {
       if (value.trim()) {
-        let val = value.trim();
-        if (key === "instagram") {
-          val = val.replace(/^@/, "");
-        }
-        submitData[key as keyof CompanyFormData] = val;
+        submitData[key] = value.trim();
       }
     });
 
     createCompanyMutation.mutate(submitData);
   };
 
+  const isPending = createCompanyMutation.isPending;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -206,253 +167,111 @@ export function CreateCompanyModal({ open, onOpenChange }: CreateCompanyModalPro
             <div>
               <DialogTitle>Criar nova loja</DialogTitle>
               <DialogDescription>
-                Preencha os dados da sua empresa para criar uma nova loja.
+                Informe os dados principais e enriqueceremos automaticamente o perfil da sua loja.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <ScrollArea className="h-[60vh] pr-4">
-            <div className="space-y-6 py-4">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  Dados da Empresa
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Razão Social *</Label>
-                    <Input
-                      id="name"
-                      placeholder="Nome registrado da empresa"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange("name", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tradeName">Nome Fantasia</Label>
-                    <Input
-                      id="tradeName"
-                      placeholder="Nome comercial da empresa"
-                      value={formData.tradeName}
-                      onChange={(e) => handleInputChange("tradeName", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-trade-name"
-                    />
-                  </div>
-                </div>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome da Loja *</Label>
+              <Input
+                id="name"
+                placeholder="Nome da sua loja ou empresa"
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                disabled={isPending}
+                data-testid="input-company-name"
+              />
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cnpj">CNPJ</Label>
-                    <Input
-                      id="cnpj"
-                      placeholder="00.000.000/0000-00"
-                      value={formData.cnpj}
-                      onChange={(e) => handleInputChange("cnpj", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-cnpj"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Descrição</Label>
-                    <Input
-                      id="description"
-                      placeholder="Breve descrição da empresa"
-                      value={formData.description}
-                      onChange={(e) => handleInputChange("description", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-description"
-                    />
-                  </div>
+            <div className="space-y-2">
+              <Label htmlFor="cnpj">CNPJ</Label>
+              <Input
+                id="cnpj"
+                placeholder="00.000.000/0000-00"
+                value={formData.cnpj}
+                onChange={(e) => handleInputChange("cnpj", e.target.value)}
+                onBlur={handleCnpjBlur}
+                disabled={isPending || isLoadingCnpj}
+                data-testid="input-company-cnpj"
+              />
+              {isLoadingCnpj && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Buscando dados do CNPJ...
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone</Label>
+              <Input
+                id="phone"
+                placeholder="(00) 00000-0000"
+                value={formData.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                disabled={isPending}
+                data-testid="input-company-phone"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="instagram">Instagram</Label>
+                <div className="relative">
+                  <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <span className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                  <Input
+                    id="instagram"
+                    className="pl-14"
+                    placeholder="usuario"
+                    value={formData.instagram}
+                    onChange={(e) => handleInputChange("instagram", e.target.value)}
+                    disabled={isPending}
+                  />
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Phone className="h-4 w-4" />
-                  Contato
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input
-                      id="phone"
-                      placeholder="(00) 00000-0000"
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange("phone", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-phone"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="contato@empresa.com"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-email"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Globe className="h-4 w-4" />
-                  Redes Sociais e Site
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="instagram">Instagram</Label>
-                    <div className="relative">
-                      <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="instagram"
-                        className="pl-9"
-                        placeholder="@usuario"
-                        value={formData.instagram}
-                        onChange={(e) => handleInputChange("instagram", e.target.value)}
-                        disabled={createCompanyMutation.isPending}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="website"
-                        className="pl-9"
-                        placeholder="www.empresa.com.br"
-                        value={formData.website}
-                        onChange={(e) => handleInputChange("website", e.target.value)}
-                        disabled={createCompanyMutation.isPending}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  Endereço
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cep">CEP</Label>
-                    <Input
-                      id="cep"
-                      placeholder="00000-000"
-                      value={formData.cep}
-                      onChange={(e) => handleInputChange("cep", e.target.value)}
-                      onBlur={handleCepBlur}
-                      disabled={createCompanyMutation.isPending || isLoadingCep}
-                      data-testid="input-company-cep"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="street">Logradouro</Label>
-                    <Input
-                      id="street"
-                      placeholder="Rua, Avenida, etc."
-                      value={formData.street}
-                      onChange={(e) => handleInputChange("street", e.target.value)}
-                      disabled={createCompanyMutation.isPending || isLoadingCep}
-                      data-testid="input-company-street"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="number">Número</Label>
-                    <Input
-                      id="number"
-                      placeholder="123"
-                      value={formData.number}
-                      onChange={(e) => handleInputChange("number", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-number"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="complement">Complemento</Label>
-                    <Input
-                      id="complement"
-                      placeholder="Sala, Andar, etc."
-                      value={formData.complement}
-                      onChange={(e) => handleInputChange("complement", e.target.value)}
-                      disabled={createCompanyMutation.isPending}
-                      data-testid="input-company-complement"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="neighborhood">Bairro</Label>
-                    <Input
-                      id="neighborhood"
-                      placeholder="Bairro"
-                      value={formData.neighborhood}
-                      onChange={(e) => handleInputChange("neighborhood", e.target.value)}
-                      disabled={createCompanyMutation.isPending || isLoadingCep}
-                      data-testid="input-company-neighborhood"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">Cidade</Label>
-                    <Input
-                      id="city"
-                      placeholder="Cidade"
-                      value={formData.city}
-                      onChange={(e) => handleInputChange("city", e.target.value)}
-                      disabled={createCompanyMutation.isPending || isLoadingCep}
-                      data-testid="input-company-city"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state">Estado</Label>
-                    <Input
-                      id="state"
-                      placeholder="UF"
-                      value={formData.state}
-                      onChange={(e) => handleInputChange("state", e.target.value.toUpperCase().slice(0, 2))}
-                      disabled={createCompanyMutation.isPending || isLoadingCep}
-                      maxLength={2}
-                      data-testid="input-company-state"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="website">Website</Label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="website"
+                    className="pl-9"
+                    placeholder="www.empresa.com.br"
+                    value={formData.website}
+                    onChange={(e) => handleInputChange("website", e.target.value)}
+                    disabled={isPending}
+                  />
                 </div>
               </div>
             </div>
-          </ScrollArea>
-          <DialogFooter className="mt-4">
+
+            <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              <Sparkles className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Com o CNPJ, Instagram ou website preenchidos, enriquecemos automaticamente o perfil
+                com dados como endereço, descrição, categoria e foto de perfil.
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={createCompanyMutation.isPending}
+              disabled={isPending}
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              disabled={createCompanyMutation.isPending || !formData.name.trim()}
+              disabled={isPending || !formData.name.trim()}
               data-testid="button-submit-create-company"
             >
-              {createCompanyMutation.isPending ? (
+              {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Criando...

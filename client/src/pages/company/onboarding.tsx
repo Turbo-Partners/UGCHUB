@@ -156,6 +156,8 @@ export default function CompanyOnboarding() {
   const [cities, setCities] = useState<{ value: string; label: string }[]>([]);
   const citiesCache = useRef<Record<string, { value: string; label: string }[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasInitialized = useRef(false);
+  const hasCnpjAutoFilled = useRef(false);
   
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
@@ -163,6 +165,12 @@ export default function CompanyOnboarding() {
   const { data: activeCompanyData, isLoading: loadingCompany } = useQuery<ActiveCompanyResponse>({
     queryKey: ["/api/active-company"],
     enabled: !!user && user.role === "company",
+    refetchInterval: (query) => {
+      const c = query.state.data?.company;
+      if (!c) return false;
+      const hasPendingEnrichment = !c.lastEnrichedAt && (c.cnpj || (c as any).instagram || c.website);
+      return hasPendingEnrichment ? 5000 : false;
+    },
   });
 
   const companyId = activeCompanyData?.companyId;
@@ -197,31 +205,68 @@ export default function CompanyOnboarding() {
 
   useEffect(() => {
     if (company) {
-      setFormData({
-        name: company.name || "",
-        tradeName: company.tradeName || "",
-        instagram: (company as any).instagram || "",
-        category: company.category || "",
-        cnpj: company.cnpj || "",
-        phone: company.phone || "",
-        email: company.email || "",
-        website: company.website || "",
-        annualRevenue: company.annualRevenue || "",
-        cep: company.cep || "",
-        street: company.street || "",
-        number: company.number || "",
-        neighborhood: company.neighborhood || "",
-        city: company.city || "",
-        state: company.state || "",
-        complement: company.complement || "",
-        isDiscoverable: company.isDiscoverable || false,
-      });
+      if (!hasInitialized.current) {
+        // First load: fill all fields from company data
+        setFormData({
+          name: company.name || "",
+          tradeName: company.tradeName || "",
+          instagram: (company as any).instagram || "",
+          category: company.category || "",
+          cnpj: company.cnpj || "",
+          phone: company.phone || "",
+          email: company.email || "",
+          website: company.website || "",
+          annualRevenue: company.annualRevenue || "",
+          cep: company.cep || "",
+          street: company.street || "",
+          number: company.number || "",
+          neighborhood: company.neighborhood || "",
+          city: company.city || "",
+          state: company.state || "",
+          complement: company.complement || "",
+          isDiscoverable: company.isDiscoverable || false,
+        });
+        hasInitialized.current = true;
+      } else {
+        // Subsequent updates (polling): only fill empty fields to protect user edits
+        setFormData(prev => ({
+          name: prev.name || company.name || "",
+          tradeName: prev.tradeName || company.tradeName || "",
+          instagram: prev.instagram || (company as any).instagram || "",
+          category: prev.category || company.category || "",
+          cnpj: prev.cnpj || company.cnpj || "",
+          phone: prev.phone || company.phone || "",
+          email: prev.email || company.email || "",
+          website: prev.website || company.website || "",
+          annualRevenue: prev.annualRevenue || company.annualRevenue || "",
+          cep: prev.cep || company.cep || "",
+          street: prev.street || company.street || "",
+          number: prev.number || company.number || "",
+          neighborhood: prev.neighborhood || company.neighborhood || "",
+          city: prev.city || company.city || "",
+          state: prev.state || company.state || "",
+          complement: prev.complement || company.complement || "",
+          isDiscoverable: prev.isDiscoverable || company.isDiscoverable || false,
+        }));
+      }
       setLogoPreview(company.logo || null);
       if (company.state && company.state !== "EX") {
         fetchCities(company.state);
       }
     }
   }, [company, fetchCities]);
+
+  // Auto-fill from BrasilAPI when CNPJ exists but basic fields are empty (immediate fallback)
+  useEffect(() => {
+    if (company && !hasCnpjAutoFilled.current) {
+      const cnpjDigits = (company.cnpj || "").replace(/\D/g, "");
+      const hasBasicData = company.tradeName || company.street || company.phone;
+      if (cnpjDigits.length === 14 && !hasBasicData) {
+        hasCnpjAutoFilled.current = true;
+        handleCnpjAutoFill(cnpjDigits);
+      }
+    }
+  }, [company]);
 
   const updateCompanyMutation = useMutation({
     mutationFn: async (data: Partial<FormData & { logo?: string; onboardingCompleted?: boolean; description?: string; tagline?: string }>) => {
@@ -717,7 +762,7 @@ export default function CompanyOnboarding() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="annualRevenue">Faturamento Anual</Label>
+                        <Label htmlFor="annualRevenue">Faturamento Mensal</Label>
                         <Select
                           value={formData.annualRevenue}
                           onValueChange={(value) => setFormData({ ...formData, annualRevenue: value })}

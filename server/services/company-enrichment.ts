@@ -5,6 +5,25 @@ import { storage } from "../storage";
 import { sendGeminiMessage } from "../lib/gemini";
 
 /**
+ * Match CNAE description to a platform category.
+ */
+function matchCnaeToCategory(cnaeDescription: string): string {
+  if (!cnaeDescription) return "outros";
+  const desc = cnaeDescription.toLowerCase();
+  if (desc.includes("saude") || desc.includes("saúde") || desc.includes("farmac") || desc.includes("medic")) return "saude";
+  if (desc.includes("beleza") || desc.includes("cosmet") || desc.includes("estetic")) return "beleza";
+  if (desc.includes("moda") || desc.includes("vestuário") || desc.includes("roupa") || desc.includes("confec") || desc.includes("calçad")) return "moda";
+  if (desc.includes("tecnologia") || desc.includes("informática") || desc.includes("software") || desc.includes("computad")) return "tecnologia";
+  if (desc.includes("aliment") || desc.includes("comida") || desc.includes("restaur") || desc.includes("padaria") || desc.includes("chocolat")) return "alimentos";
+  if (desc.includes("bebida") || desc.includes("cervej") || desc.includes("vinho")) return "bebidas";
+  if (desc.includes("fitness") || desc.includes("academia") || desc.includes("esport") || desc.includes("suplement")) return "fitness";
+  if (desc.includes("casa") || desc.includes("decoração") || desc.includes("moveis") || desc.includes("móveis")) return "casa";
+  if (desc.includes("pet") || desc.includes("animal") || desc.includes("veterinár")) return "pets";
+  if (desc.includes("infantil") || desc.includes("criança") || desc.includes("brinquedo")) return "infantil";
+  return "outros";
+}
+
+/**
  * Re-enrich company CNPJ data from ReceitaWS.
  * Returns true if data was updated.
  */
@@ -35,14 +54,51 @@ export async function enrichCompanyCnpj(companyId: number, cnpj: string): Promis
       cnpjLastUpdated: new Date(),
     };
 
-    // Fill city/state from CNPJ data if not already set
-    const existing = await db.select({ city: companies.city, state: companies.state }).from(companies).where(eq(companies.id, companyId)).limit(1);
+    // Fill basic fields from CNPJ data if not already set
+    const existing = await db.select({
+      tradeName: companies.tradeName,
+      phone: companies.phone,
+      cep: companies.cep,
+      street: companies.street,
+      number: companies.number,
+      neighborhood: companies.neighborhood,
+      complement: companies.complement,
+      city: companies.city,
+      state: companies.state,
+      category: companies.category,
+    }).from(companies).where(eq(companies.id, companyId)).limit(1);
     if (existing[0]) {
-      if (!existing[0].city && data.municipio) {
+      const e = existing[0];
+      if (!e.tradeName && (data.fantasia || data.nome)) {
+        updateData.tradeName = data.fantasia || data.nome;
+      }
+      if (!e.phone && data.telefone) {
+        // Format phone: remove non-digits, keep raw
+        updateData.phone = data.telefone.replace(/\D/g, "").slice(0, 11);
+      }
+      if (!e.cep && data.cep) {
+        updateData.cep = data.cep.replace(/\D/g, "");
+      }
+      if (!e.street && data.logradouro) {
+        updateData.street = data.logradouro;
+      }
+      if (!e.number && data.numero) {
+        updateData.number = data.numero;
+      }
+      if (!e.neighborhood && data.bairro) {
+        updateData.neighborhood = data.bairro;
+      }
+      if (!e.complement && data.complemento) {
+        updateData.complement = data.complemento;
+      }
+      if (!e.city && data.municipio) {
         updateData.city = data.municipio;
       }
-      if (!existing[0].state && data.uf) {
+      if (!e.state && data.uf) {
         updateData.state = data.uf;
+      }
+      if (!e.category && data.atividade_principal?.[0]?.text) {
+        updateData.category = matchCnaeToCategory(data.atividade_principal[0].text);
       }
     }
 
