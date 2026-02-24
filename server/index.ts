@@ -110,5 +110,9 @@ app.use((req, res, next) => {
     // Company re-enrichment: weekly batch (Sundays 3 AM BRT)
     const { initCompanyEnrichmentJob } = await import("./jobs/companyEnrichmentJob");
     initCompanyEnrichmentJob();
+
+    // Brand Canvas refresh: monthly batch (1st Sunday 4 AM BRT)
+    const { initBrandCanvasRefreshJob } = await import("./jobs/brandCanvasRefreshJob");
+    initBrandCanvasRefreshJob();
   });
 })();

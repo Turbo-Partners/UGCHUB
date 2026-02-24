@@ -78,7 +78,10 @@ export type WebSocketEvent =
   | { type: 'creator:workflow_changed'; applicationId: number; campaignId: number; newStatus: string }
   | { type: 'message:new'; applicationId?: number; conversationId?: number; message?: WebSocketMessage; payload?: { conversationId: number; message: any } }
   | { type: 'instagram_dm'; data: { conversationId: string; senderId: string; messageText: string | null; messageType: string; timestamp: number } }
-  | { type: 'dm_sync_progress'; data: { page: number; totalConversations: number; synced: number; errors: number; done: boolean } };
+  | { type: 'dm_sync_progress'; data: { page: number; totalConversations: number; synced: number; errors: number; done: boolean } }
+  | { type: 'brand_canvas:processing'; companyId: number; step: string; status: BrandCanvasStepStatus; progress: number; message: string }
+  | { type: 'brand_canvas:completed'; companyId: number; confidenceScore: number }
+  | { type: 'brand_canvas:failed'; companyId: number; error: string };
 
 export interface InstagramTopPost {
   id: string;
@@ -275,7 +278,11 @@ export const structuredBriefingSchema = z.object({
   referenceCreators: z.string().max(500).optional(),
 }).nullable();
 
-// Brand Canvas — structured brand knowledge for UGC briefings
+// ==========================================
+// Brand Canvas V2 — structured brand knowledge for UGC briefings
+// ==========================================
+
+// --- Shared sub-types (used in both V1 compat and V2) ---
 export interface BrandCanvasAsset {
   url: string;
   type: 'image' | 'video';
@@ -290,53 +297,190 @@ export interface BrandCanvasProduct {
   description?: string;
   benefits?: string;
   valueProposition?: string;
+  priceRange?: string;
+  imageUrl?: string;
+  category?: string;
 }
 
 export interface BrandCanvasPersona {
+  id?: string;
   name?: string;
   ageRange?: string;
+  gender?: string;
+  location?: string;
+  interests?: string[];
   painPoints?: string[];
   desires?: string[];
   blockers?: string[];
 }
 
-export interface BrandCanvas {
-  // Tab 1 — Marca
+// --- V2 sub-types ---
+export interface BrandCanvasColorPalette {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+  background?: string;
+  text?: string;
+  additional?: string[];
+  gradients?: string[];
+}
+
+export interface BrandCanvasTypography {
+  headingFont?: string;
+  bodyFont?: string;
+  fontScale?: 'compact' | 'normal' | 'large';
+  fontPairingSuggestion?: string;
+}
+
+export interface BrandCanvasVisualIdentity {
+  colors?: BrandCanvasColorPalette;
+  typography?: BrandCanvasTypography;
+  logoUrl?: string;
+  logoAnalysis?: string;
+  visualAesthetic?: string;
+  moodKeywords?: string[];
+}
+
+export interface BrandCanvasVoice {
+  toneType?: string;
+  toneDescription?: string;
+  personalityTraits?: string[];
+  languageStyle?: string;
+  keywords?: string[];
+  doList?: string[];
+  dontList?: string[];
+  exampleCaptions?: string[];
+  emojiUsage?: 'none' | 'minimal' | 'moderate' | 'heavy';
+}
+
+export interface BrandCanvasContentStrategy {
+  idealContentTypes?: string[];
+  hooks?: string[];
+  keyMessages?: string[];
+  callToAction?: string;
+  avoidTopics?: string;
+  hashtagStrategy?: string[];
+}
+
+export interface BrandCanvasCompetitor {
+  name: string;
+  instagram?: string;
+  website?: string;
+  insights?: string;
+}
+
+export interface BrandCanvasReference {
+  referenceCreators?: string;
+  competitorBrands?: string[];
+  competitors?: BrandCanvasCompetitor[];
+  referenceBrands?: string[];
+  referenceUrls?: string[];
+  brandAssets?: BrandCanvasAsset[];
+  avoidWords?: string[];
+}
+
+export type BrandCanvasStepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+export interface BrandCanvasProcessingStep {
+  name: string;
+  status: BrandCanvasStepStatus;
+  startedAt?: string;
+  completedAt?: string;
+  error?: string;
+}
+
+export interface BrandCanvasProcessingMeta {
+  version: number;
+  status: 'idle' | 'processing' | 'completed' | 'failed';
+  currentStep?: string;
+  steps?: BrandCanvasProcessingStep[];
+  aiConfidenceScore?: number;
+  dataSources?: string[];
+  lastProcessedAt?: string;
+  error?: string;
+  history?: { date: string; score: number; sources: string[] }[];
+}
+
+// --- V2 Main Interface ---
+export interface BrandCanvasV2 {
+  // Identity
   aboutBrand?: string;
   whatWeDo?: string;
   differentials?: string;
+  mission?: string;
+  vision?: string;
+  coreValues?: string[];
+  slogan?: string;
+  marketPositioning?: string;
 
-  // Tab 2 — Referências & Ativos
-  referenceCreators?: string;
-  competitorBrands?: string[];
-  referenceUrls?: string[];
-  brandAssets?: BrandCanvasAsset[];
+  // Visual Identity
+  visualIdentity?: BrandCanvasVisualIdentity;
 
-  // Tab 3 — Produtos
+  // Voice & Tone
+  voice?: BrandCanvasVoice;
+
+  // Products
   products?: BrandCanvasProduct[];
 
-  // Tab 4 — Público-Alvo
+  // Audience
   targetAudience?: string;
+  demographics?: string;
   personas?: BrandCanvasPersona[];
+  painPoints?: string[];
+  desiredEmotions?: string[];
 
-  // Tab 5 — Tom & Estilo
+  // Angles & Psychological Triggers (UGC briefing focus)
+  problemsAndDesires?: string[];
+  transformationStories?: string;
+  valueProposition?: string;
+  commercialStrategies?: string;
+
+  // Content Strategy
+  contentStrategy?: BrandCanvasContentStrategy;
+
+  // References
+  references?: BrandCanvasReference;
+
+  // Processing metadata
+  processing?: BrandCanvasProcessingMeta;
+
+  // V1 compat fields (kept for lazy migration)
   brandVoice?: string;
   brandVoiceDescription?: string;
   doList?: string[];
   dontList?: string[];
   idealContentTypes?: string[];
   avoidTopics?: string;
-
-  // Tab 6 — Ganchos & Messaging
+  referenceCreators?: string;
+  competitorBrands?: string[];
+  referenceUrls?: string[];
+  brandAssets?: BrandCanvasAsset[];
   hooks?: string[];
   keyMessages?: string[];
   callToAction?: string;
+
+  // Generation context (user-provided for AI pipeline)
+  generationContext?: {
+    selectedPostIds?: string[];
+    uploadedReferences?: BrandCanvasAsset[];
+    questionnaire?: {
+      tonePreference?: string;
+      targetAudience?: string;
+      inspirationBrands?: string;
+      communicationAvoid?: string;
+      brandEssence?: string;
+    };
+  };
 
   // Metadata
   lastUpdatedAt?: string;
   completionScore?: number;
 }
 
+// Legacy alias — BrandCanvas now maps to V2
+export type BrandCanvas = BrandCanvasV2;
+
+// --- Zod Schemas ---
 const brandCanvasAssetSchema = z.object({
   url: z.string(),
   type: z.enum(['image', 'video']),
@@ -351,36 +495,182 @@ const brandCanvasProductSchema = z.object({
   description: z.string().max(500).optional(),
   benefits: z.string().max(500).optional(),
   valueProposition: z.string().max(500).optional(),
+  priceRange: z.string().max(100).optional(),
+  imageUrl: z.string().max(500).optional(),
+  category: z.string().max(100).optional(),
 });
 
 const brandCanvasPersonaSchema = z.object({
+  id: z.string().max(50).optional(),
   name: z.string().max(100).optional(),
   ageRange: z.string().max(50).optional(),
+  gender: z.string().max(50).optional(),
+  location: z.string().max(100).optional(),
+  interests: z.array(z.string().max(100)).max(20).optional(),
   painPoints: z.array(z.string().max(200)).max(10).optional(),
   desires: z.array(z.string().max(200)).max(10).optional(),
   blockers: z.array(z.string().max(200)).max(10).optional(),
 });
 
+const brandCanvasColorPaletteSchema = z.object({
+  primary: z.string().max(20).optional(),
+  secondary: z.string().max(20).optional(),
+  accent: z.string().max(20).optional(),
+  background: z.string().max(20).optional(),
+  text: z.string().max(20).optional(),
+  additional: z.array(z.string().max(20)).max(10).optional(),
+  gradients: z.array(z.string().max(100)).max(5).optional(),
+});
+
+const brandCanvasTypographySchema = z.object({
+  headingFont: z.string().max(100).optional(),
+  bodyFont: z.string().max(100).optional(),
+  fontScale: z.enum(['compact', 'normal', 'large']).optional(),
+  fontPairingSuggestion: z.string().max(200).optional(),
+});
+
+const brandCanvasVisualIdentitySchema = z.object({
+  colors: brandCanvasColorPaletteSchema.optional(),
+  typography: brandCanvasTypographySchema.optional(),
+  logoUrl: z.string().max(500).optional(),
+  logoAnalysis: z.string().max(1000).optional(),
+  visualAesthetic: z.string().max(50).optional(),
+  moodKeywords: z.array(z.string().max(50)).max(20).optional(),
+});
+
+const brandCanvasVoiceSchema = z.object({
+  toneType: z.string().max(50).optional(),
+  toneDescription: z.string().max(500).optional(),
+  personalityTraits: z.array(z.string().max(100)).max(10).optional(),
+  languageStyle: z.string().max(50).optional(),
+  keywords: z.array(z.string().max(100)).max(30).optional(),
+  doList: z.array(z.string().max(200)).max(20).optional(),
+  dontList: z.array(z.string().max(200)).max(20).optional(),
+  exampleCaptions: z.array(z.string().max(500)).max(10).optional(),
+  emojiUsage: z.enum(['none', 'minimal', 'moderate', 'heavy']).optional(),
+});
+
+const brandCanvasContentStrategySchema = z.object({
+  idealContentTypes: z.array(z.string().max(50)).max(20).optional(),
+  hooks: z.array(z.string().max(300)).max(20).optional(),
+  keyMessages: z.array(z.string().max(300)).max(20).optional(),
+  callToAction: z.string().max(300).optional(),
+  avoidTopics: z.string().max(500).optional(),
+  hashtagStrategy: z.array(z.string().max(100)).max(30).optional(),
+});
+
+const brandCanvasCompetitorSchema = z.object({
+  name: z.string().max(200),
+  instagram: z.string().max(200).optional(),
+  website: z.string().max(500).optional(),
+  insights: z.string().max(500).optional(),
+});
+
+const brandCanvasReferenceSchema = z.object({
+  referenceCreators: z.string().max(500).optional(),
+  competitorBrands: z.array(z.string().max(200)).max(20).optional(),
+  competitors: z.array(brandCanvasCompetitorSchema).max(10).optional(),
+  referenceBrands: z.array(z.string().max(200)).max(10).optional(),
+  referenceUrls: z.array(z.string().max(500)).max(20).optional(),
+  brandAssets: z.array(brandCanvasAssetSchema).max(50).optional(),
+  avoidWords: z.array(z.string().max(100)).max(30).optional(),
+});
+
+const brandCanvasProcessingStepSchema = z.object({
+  name: z.string(),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'skipped']),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  error: z.string().optional(),
+});
+
+const brandCanvasProcessingMetaSchema = z.object({
+  version: z.number().default(2),
+  status: z.enum(['idle', 'processing', 'completed', 'failed']).default('idle'),
+  currentStep: z.string().optional(),
+  steps: z.array(brandCanvasProcessingStepSchema).optional(),
+  aiConfidenceScore: z.number().min(0).max(100).optional(),
+  dataSources: z.array(z.string()).optional(),
+  lastProcessedAt: z.string().optional(),
+  error: z.string().optional(),
+  history: z.array(z.object({
+    date: z.string(),
+    score: z.number(),
+    sources: z.array(z.string()),
+  })).max(50).optional(),
+});
+
 export const brandCanvasSchema = z.object({
+  // Identity
   aboutBrand: z.string().max(500).optional(),
   whatWeDo: z.string().max(500).optional(),
   differentials: z.string().max(500).optional(),
-  referenceCreators: z.string().max(500).optional(),
-  competitorBrands: z.array(z.string().max(200)).max(20).optional(),
-  referenceUrls: z.array(z.string().url().max(500)).max(20).optional(),
-  brandAssets: z.array(brandCanvasAssetSchema).max(50).optional(),
+  mission: z.string().max(500).optional(),
+  vision: z.string().max(500).optional(),
+  coreValues: z.array(z.string().max(100)).max(15).optional(),
+  slogan: z.string().max(300).optional(),
+  marketPositioning: z.string().max(500).optional(),
+
+  // Visual Identity (V2)
+  visualIdentity: brandCanvasVisualIdentitySchema.optional(),
+
+  // Voice (V2)
+  voice: brandCanvasVoiceSchema.optional(),
+
+  // Products
   products: z.array(brandCanvasProductSchema).max(30).optional(),
+
+  // Audience
   targetAudience: z.string().max(500).optional(),
+  demographics: z.string().max(500).optional(),
   personas: z.array(brandCanvasPersonaSchema).max(10).optional(),
+  painPoints: z.array(z.string().max(300)).max(15).optional(),
+  desiredEmotions: z.array(z.string().max(100)).max(10).optional(),
+
+  // Angles & Psychological Triggers
+  problemsAndDesires: z.array(z.string().max(300)).max(15).optional(),
+  transformationStories: z.string().max(1000).optional(),
+  valueProposition: z.string().max(300).optional(),
+  commercialStrategies: z.string().max(500).optional(),
+
+  // Content Strategy (V2)
+  contentStrategy: brandCanvasContentStrategySchema.optional(),
+
+  // References (V2)
+  references: brandCanvasReferenceSchema.optional(),
+
+  // Processing (V2)
+  processing: brandCanvasProcessingMetaSchema.optional(),
+
+  // V1 compat flat fields
   brandVoice: z.string().max(50).optional(),
   brandVoiceDescription: z.string().max(500).optional(),
   doList: z.array(z.string().max(200)).max(20).optional(),
   dontList: z.array(z.string().max(200)).max(20).optional(),
   idealContentTypes: z.array(z.string().max(50)).max(20).optional(),
   avoidTopics: z.string().max(500).optional(),
+  referenceCreators: z.string().max(500).optional(),
+  competitorBrands: z.array(z.string().max(200)).max(20).optional(),
+  referenceUrls: z.array(z.string().max(500)).max(20).optional(),
+  brandAssets: z.array(brandCanvasAssetSchema).max(50).optional(),
   hooks: z.array(z.string().max(300)).max(20).optional(),
   keyMessages: z.array(z.string().max(300)).max(20).optional(),
   callToAction: z.string().max(300).optional(),
+
+  // Generation context
+  generationContext: z.object({
+    selectedPostIds: z.array(z.string()).max(10).optional(),
+    uploadedReferences: z.array(brandCanvasAssetSchema).max(5).optional(),
+    questionnaire: z.object({
+      tonePreference: z.string().max(50).optional(),
+      targetAudience: z.string().max(300).optional(),
+      inspirationBrands: z.string().max(300).optional(),
+      communicationAvoid: z.string().max(300).optional(),
+      brandEssence: z.string().max(200).optional(),
+    }).optional(),
+  }).optional(),
+
+  // Metadata
   lastUpdatedAt: z.string().optional(),
   completionScore: z.number().min(0).max(100).optional(),
 }).nullable();

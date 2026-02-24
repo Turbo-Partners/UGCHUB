@@ -31,7 +31,7 @@ interface AboutCompanySectionProps {
 export function AboutCompanySection({ company }: AboutCompanySectionProps) {
   const sb = company.structuredBriefing;
   const bc = company.brandCanvas;
-  const hasCanvas = bc && (bc.aboutBrand || bc.whatWeDo || bc.products?.length || bc.personas?.length || bc.brandVoice || bc.doList?.length || bc.dontList?.length || bc.hooks?.length || bc.keyMessages?.length);
+  const hasCanvas = bc && (bc.aboutBrand || bc.whatWeDo || bc.products?.length || bc.personas?.length || bc.voice?.toneType || bc.brandVoice || bc.voice?.doList?.length || bc.doList?.length || bc.voice?.dontList?.length || bc.dontList?.length || bc.contentStrategy?.hooks?.length || bc.hooks?.length || bc.contentStrategy?.keyMessages?.length || bc.keyMessages?.length);
   const hasStructured = sb && (sb.whatWeDo || sb.targetAudience || sb.differentials || sb.brandVoice || sb.idealContentTypes?.length || sb.avoidTopics);
   const hasEnrichment = company.companyBriefing || company.description ||
     company.websiteDescription || company.websiteAbout ||
@@ -49,15 +49,15 @@ export function AboutCompanySection({ company }: AboutCompanySectionProps) {
   const whatWeDoText = bc?.whatWeDo && bc.whatWeDo !== bc?.aboutBrand ? bc.whatWeDo : (!bc?.aboutBrand && sb?.whatWeDo ? null : (sb?.whatWeDo && sb.whatWeDo !== enrichmentDesc ? sb.whatWeDo : null));
   const targetAudience = bc?.targetAudience || sb?.targetAudience || null;
   const differentials = bc?.differentials || sb?.differentials || null;
-  const brandVoiceRaw = bc?.brandVoice || sb?.brandVoice || null;
+  const brandVoiceRaw = bc?.voice?.toneType || bc?.brandVoice || sb?.brandVoice || null;
   const brandVoiceLabel = brandVoiceRaw
     ? BRAND_VOICE_OPTIONS.find(o => o.value === brandVoiceRaw)?.label || brandVoiceRaw
     : null;
-  const brandVoiceDesc = bc?.brandVoiceDescription || null;
-  const doList = bc?.doList || null;
-  const dontList = bc?.dontList || null;
-  const idealContentTypes = bc?.idealContentTypes || sb?.idealContentTypes || null;
-  const avoidTopics = bc?.avoidTopics || sb?.avoidTopics || null;
+  const brandVoiceDesc = bc?.voice?.toneDescription || bc?.brandVoiceDescription || null;
+  const doList = bc?.voice?.doList || bc?.doList || null;
+  const dontList = bc?.voice?.dontList || bc?.dontList || null;
+  const idealContentTypes = bc?.contentStrategy?.idealContentTypes || bc?.idealContentTypes || sb?.idealContentTypes || null;
+  const avoidTopics = bc?.contentStrategy?.avoidTopics || bc?.avoidTopics || sb?.avoidTopics || null;
 
   return (
     <div className="space-y-5">
@@ -269,40 +269,46 @@ export function AboutCompanySection({ company }: AboutCompanySectionProps) {
         </div>
       )}
 
-      {((bc?.hooks && bc.hooks.length > 0) || (bc?.keyMessages && bc.keyMessages.length > 0)) && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Megaphone className="h-4 w-4 text-muted-foreground" />
-            Ganchos & Mensagens
+      {(() => {
+        const hooks = bc?.contentStrategy?.hooks || bc?.hooks || [];
+        const keyMessages = bc?.contentStrategy?.keyMessages || bc?.keyMessages || [];
+        const callToAction = bc?.contentStrategy?.callToAction || bc?.callToAction;
+        if (hooks.length === 0 && keyMessages.length === 0) return null;
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Megaphone className="h-4 w-4 text-muted-foreground" />
+              Ganchos & Mensagens
+            </div>
+            {hooks.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ganchos</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {hooks.map((hook, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-xs font-normal">{hook}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {keyMessages.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mensagens-chave</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {keyMessages.map((msg, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs font-normal">{msg}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {callToAction && (
+              <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/10">
+                <span className="text-xs font-medium text-primary">CTA: </span>
+                <span className="text-sm text-muted-foreground">{callToAction}</span>
+              </div>
+            )}
           </div>
-          {bc.hooks && bc.hooks.length > 0 && (
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ganchos</span>
-              <div className="flex flex-wrap gap-1.5">
-                {bc.hooks.map((hook, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs font-normal">{hook}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {bc.keyMessages && bc.keyMessages.length > 0 && (
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mensagens-chave</span>
-              <div className="flex flex-wrap gap-1.5">
-                {bc.keyMessages.map((msg, idx) => (
-                  <Badge key={idx} variant="outline" className="text-xs font-normal">{msg}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {bc?.callToAction && (
-            <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/10">
-              <span className="text-xs font-medium text-primary">CTA: </span>
-              <span className="text-sm text-muted-foreground">{bc.callToAction}</span>
-            </div>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {((company.brandColors && company.brandColors.length > 0) || company.brandLogo) && (
         <div className="p-4 rounded-xl bg-muted/30 space-y-3">
@@ -332,14 +338,14 @@ export function AboutCompanySection({ company }: AboutCompanySectionProps) {
         </div>
       )}
 
-      {bc?.brandAssets && bc.brandAssets.filter(a => a.type === 'image').length > 0 && (
+      {((bc?.references?.brandAssets || bc?.brandAssets)?.filter(a => a.type === 'image')?.length ?? 0) > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Image className="h-4 w-4 text-muted-foreground" />
             Referências Visuais
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2">
-            {bc.brandAssets.filter(a => a.type === 'image').slice(0, 6).map((asset, idx) => (
+            {(bc!.references?.brandAssets || bc!.brandAssets || []).filter(a => a.type === 'image').slice(0, 6).map((asset, idx) => (
               <img
                 key={idx}
                 src={asset.url}

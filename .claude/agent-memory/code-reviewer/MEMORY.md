@@ -27,8 +27,18 @@
 ### AI Integration Patterns
 - Gemini Flash usado para generation (descrições, briefings)
 - Respostas sempre limpas com `.replace(/```json?\n?/g, "")` antes de JSON.parse()
-- Sem timeout nas chamadas AI (pode travar se API demorar)
-- Erros de parsing não retornam mensagem útil ao usuário
+- Brand Canvas V2 tem timeouts por step (30s) + timeout total (3min) em `brand-canvas.ts`
+- OpenRouter é o cliente principal (singleton `_openRouterClient`); Gemini e Anthropic são fallbacks diretos
+- Fallback Anthropic (stepVoice/stepSynthesis) cria `new Anthropic()` a cada chamada — deveria ser singleton
+- `Promise.race` para timeout não cancela a promise original (custo AI acumulado em background)
+
+### Brand Canvas V2 Bugs Conhecidos (brand-canvas.ts)
+- `mergeCanvasData`: 7 campos duplicados entre lista flat e deep-merges aninhados (doList, dontList, avoidTopics, callToAction, idealContentTypes, hooks, keyMessages)
+- `mergeCanvasData`: campo `references` (BrandCanvasReference) completamente ausente — nunca mergeado
+- `calculateCanvasCompletionScoreV2`: comentário diz "20 fields" mas são 24 checks; `references.competitors` e `references.referenceBrands` nunca são preenchidos via pipeline
+- `skippedOrFailed` (linha 1115): variável dead code, nunca usada após declaração
+- `stepVisual` linha 502: usa `company.brandColors` (não-refreshed) em vez de `refreshed.brandColors`
+- `stepSocial`/`stepVoice`: dynamic import de `@shared/schema` e `drizzle-orm` dentro de funções — desnecessário, já importados estáticamente no topo
 
 ## Architecture Decisions
 - `scoreCreatorForCampaign()` usa scoring ponderado: niche (30), location (15), social (25), completeness (10)

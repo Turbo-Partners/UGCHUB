@@ -119,6 +119,59 @@ export const BRAND_VOICE_OPTIONS = [
   { value: "jovem", label: "Jovem" },
 ] as const;
 
+// Brand Canvas V2 options
+export const VISUAL_AESTHETIC_OPTIONS = [
+  { value: "minimal", label: "Minimalista" },
+  { value: "bold", label: "Ousado" },
+  { value: "elegant", label: "Elegante" },
+  { value: "playful", label: "Divertido" },
+  { value: "corporate", label: "Corporativo" },
+  { value: "organic", label: "Orgânico" },
+  { value: "vintage", label: "Vintage" },
+  { value: "tech", label: "Tecnológico" },
+] as const;
+
+export const LANGUAGE_STYLE_OPTIONS = [
+  { value: "formal", label: "Formal" },
+  { value: "casual", label: "Casual" },
+  { value: "slang", label: "Gírias / Coloquial" },
+  { value: "technical", label: "Técnico" },
+  { value: "poetic", label: "Poético" },
+] as const;
+
+export const EMOJI_USAGE_OPTIONS = [
+  { value: "none", label: "Nenhum" },
+  { value: "minimal", label: "Mínimo" },
+  { value: "moderate", label: "Moderado" },
+  { value: "heavy", label: "Intenso" },
+] as const;
+
+export const FONT_SCALE_OPTIONS = [
+  { value: "compact", label: "Compacto" },
+  { value: "normal", label: "Normal" },
+  { value: "large", label: "Grande" },
+] as const;
+
+export const PERSONALITY_TRAIT_OPTIONS = [
+  { value: "amigável", label: "Amigável" },
+  { value: "autoritário", label: "Autoritário" },
+  { value: "confiável", label: "Confiável" },
+  { value: "criativo", label: "Criativo" },
+  { value: "divertido", label: "Divertido" },
+  { value: "educativo", label: "Educativo" },
+  { value: "empático", label: "Empático" },
+  { value: "inovador", label: "Inovador" },
+  { value: "inspirador", label: "Inspirador" },
+  { value: "ousado", label: "Ousado" },
+  { value: "premium", label: "Premium" },
+  { value: "sustentável", label: "Sustentável" },
+] as const;
+
+export type VisualAestheticValue = typeof VISUAL_AESTHETIC_OPTIONS[number]["value"];
+export type LanguageStyleValue = typeof LANGUAGE_STYLE_OPTIONS[number]["value"];
+export type EmojiUsageValue = typeof EMOJI_USAGE_OPTIONS[number]["value"];
+export type FontScaleValue = typeof FONT_SCALE_OPTIONS[number]["value"];
+
 export const ANNUAL_REVENUE_OPTIONS = [
   "R$0 – R$30.000",
   "R$30.000 – R$50.000",

@@ -1,82 +1,50 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Building2, Image, ShoppingCart, Users, MessageSquare, Sparkles,
-  Plus, X, Save, Loader2, ChevronRight, Lightbulb, GripVertical,
-  Check, Ban, Trash2, UserPlus, Link2, Target, Megaphone, Wand2,
-} from "lucide-react";
-import { BRAND_VOICE_OPTIONS, IDEAL_CONTENT_TYPES } from "@shared/constants";
-import type { BrandCanvas, BrandCanvasProduct, BrandCanvasPersona } from "@shared/schema";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TagsInput } from "@/components/ui/tags-input";
+import { StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, Save, Building2, Paintbrush, MessageSquare, ShoppingCart, Users, Sparkles, Image, Zap } from "lucide-react";
+import type {
+  BrandCanvasV2,
+  BrandCanvasVisualIdentity,
+  BrandCanvasVoice,
+  BrandCanvasContentStrategy,
+  BrandCanvasReference,
+  BrandCanvasProduct,
+  BrandCanvasPersona,
+  BrandCanvasProcessingMeta,
+  BrandCanvasProcessingStep,
+} from "@shared/schema";
 
-// Cores e ícones por tab
-const TAB_CONFIG = [
-  { id: "marca", label: "Marca", icon: Building2, color: "blue" },
-  { id: "referencias", label: "Referências", icon: Image, color: "purple" },
-  { id: "produtos", label: "Produtos", icon: ShoppingCart, color: "emerald" },
-  { id: "publico", label: "Público", icon: Users, color: "orange" },
-  { id: "tom", label: "Tom & Estilo", icon: MessageSquare, color: "pink" },
-  { id: "ganchos", label: "Ganchos", icon: Sparkles, color: "amber" },
-] as const;
+// Components
+import { BrandCanvasHeader } from "@/components/brand-canvas/BrandCanvasHeader";
+import { BrandCanvasAIPanel } from "@/components/brand-canvas/BrandCanvasAIPanel";
+import { SectionCard } from "@/components/brand-canvas/SectionCard";
+import { FieldWithAI } from "@/components/brand-canvas/FieldWithAI";
+import { BrandCanvasVisualIdentitySheet } from "@/components/brand-canvas/BrandCanvasVisualIdentity";
+import { BrandCanvasVoiceSheet } from "@/components/brand-canvas/BrandCanvasVoice";
+import { BrandCanvasProductsSheet } from "@/components/brand-canvas/BrandCanvasProducts";
+import { BrandCanvasAudienceSheet } from "@/components/brand-canvas/BrandCanvasAudience";
+import { BrandCanvasContentSheet } from "@/components/brand-canvas/BrandCanvasContent";
+import { BrandCanvasReferencesSheet } from "@/components/brand-canvas/BrandCanvasReferences";
+import { BrandCanvasAnglesSheet } from "@/components/brand-canvas/BrandCanvasAngles";
 
-type TabId = typeof TAB_CONFIG[number]["id"];
+// Sheet types
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-// Gradient classes por cor
-const GRADIENTS: Record<string, string> = {
-  blue: "from-blue-500/20 to-blue-600/5",
-  purple: "from-purple-500/20 to-purple-600/5",
-  emerald: "from-emerald-500/20 to-emerald-600/5",
-  orange: "from-orange-500/20 to-orange-600/5",
-  pink: "from-pink-500/20 to-pink-600/5",
-  amber: "from-amber-500/20 to-amber-600/5",
-};
-
-const ICON_GRADIENTS: Record<string, string> = {
-  blue: "from-blue-500 to-blue-600",
-  purple: "from-purple-500 to-purple-600",
-  emerald: "from-emerald-500 to-emerald-600",
-  orange: "from-orange-500 to-orange-600",
-  pink: "from-pink-500 to-pink-600",
-  amber: "from-amber-500 to-amber-600",
-};
-
-const ACTIVE_BORDER: Record<string, string> = {
-  blue: "border-blue-500/50",
-  purple: "border-purple-500/50",
-  emerald: "border-emerald-500/50",
-  orange: "border-orange-500/50",
-  pink: "border-pink-500/50",
-  amber: "border-amber-500/50",
-};
-
-interface CompanyInfo {
-  id: number;
-  name: string;
-  tradeName?: string | null;
-  cnpj?: string | null;
-  website?: string | null;
-  instagram?: string | null;
-  category?: string | null;
-  tagline?: string | null;
-  city?: string | null;
-  state?: string | null;
-  enrichmentScore?: number | null;
-}
+// ==========================================
+// Types
+// ==========================================
 
 interface CanvasResponse {
-  brandCanvas: BrandCanvas | null;
+  brandCanvas: BrandCanvasV2 | null;
   completionScore: number;
+  processingStatus: BrandCanvasProcessingMeta;
   enrichmentData: {
     websiteDescription?: string;
     websiteAbout?: string;
@@ -90,1023 +58,709 @@ interface CanvasResponse {
   };
 }
 
-// Estado vazio padrão
-function emptyCanvas(): BrandCanvas {
+type SectionSheet = 'identity' | 'visual' | 'voice' | 'products' | 'audience' | 'angles' | 'content' | 'references' | null;
+
+function emptyCanvas(): BrandCanvasV2 {
   return {
     aboutBrand: "", whatWeDo: "", differentials: "",
-    referenceCreators: "", competitorBrands: [], referenceUrls: [], brandAssets: [],
+    mission: "", vision: "", coreValues: [], slogan: "", marketPositioning: "",
+    visualIdentity: { colors: {}, typography: {} },
+    voice: { doList: [], dontList: [], personalityTraits: [], keywords: [], exampleCaptions: [] },
     products: [],
-    targetAudience: "", personas: [],
-    brandVoice: "", brandVoiceDescription: "", doList: [], dontList: [],
-    idealContentTypes: [], avoidTopics: "",
-    hooks: [], keyMessages: [], callToAction: "",
+    targetAudience: "", demographics: "", personas: [], painPoints: [], desiredEmotions: [],
+    problemsAndDesires: [], transformationStories: "", valueProposition: "", commercialStrategies: "",
+    contentStrategy: { idealContentTypes: [], hooks: [], keyMessages: [], hashtagStrategy: [] },
+    references: { referenceCreators: "", competitorBrands: [], competitors: [], referenceUrls: [], brandAssets: [], avoidWords: [] },
+    processing: { version: 2, status: 'idle' },
   };
 }
 
-export default function BrandCanvasPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("marca");
-  const [canvas, setCanvas] = useState<BrandCanvas>(emptyCanvas());
-  const [loaded, setLoaded] = useState(false);
+// ==========================================
+// Section completion helpers
+// ==========================================
 
-  // Buscar company ativa
-  const { data: activeCompany } = useQuery<{ company: CompanyInfo }>({
+function identityCompletion(c: BrandCanvasV2): number {
+  // Aligned with backend: 5 identity checks
+  const checks = [
+    !!c.aboutBrand?.trim(), !!c.whatWeDo?.trim(), !!c.differentials?.trim(),
+    !!c.mission?.trim(), !!(c.coreValues?.length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function visualCompletion(c: BrandCanvasV2): number {
+  const vi = c.visualIdentity || {};
+  const checks = [!!vi.colors?.primary, !!vi.logoUrl, !!vi.visualAesthetic];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function voiceCompletion(c: BrandCanvasV2): number {
+  const v = c.voice || {};
+  // Aligned with backend: 3 voice checks (no personalityTraits)
+  const checks = [
+    !!(v.toneType || c.brandVoice),
+    !!(v.doList?.length || c.doList?.length),
+    !!(v.exampleCaptions?.length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function productsCompletion(c: BrandCanvasV2): number {
+  return c.products?.length ? 100 : 0;
+}
+
+function audienceCompletion(c: BrandCanvasV2): number {
+  const checks = [
+    !!c.targetAudience?.trim(), !!(c.personas?.length),
+    !!(c.painPoints?.length), !!(c.desiredEmotions?.length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function anglesCompletion(c: BrandCanvasV2): number {
+  const checks = [
+    !!(c.problemsAndDesires?.length), !!c.valueProposition?.trim(),
+    !!c.commercialStrategies?.trim(),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function contentCompletion(c: BrandCanvasV2): number {
+  const cs = c.contentStrategy || {};
+  const checks = [
+    !!(cs.idealContentTypes?.length || c.idealContentTypes?.length),
+    !!(cs.hooks?.length || c.hooks?.length),
+    !!(cs.keyMessages?.length || c.keyMessages?.length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function referencesCompletion(c: BrandCanvasV2): number {
+  const r = c.references || {};
+  // Aligned with backend: competitors + referenceBrands
+  const checks = [
+    !!(r.competitors?.length),
+    !!(r.referenceBrands?.length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function identitySummary(c: BrandCanvasV2): string {
+  return c.slogan?.trim() || c.aboutBrand?.trim() || c.whatWeDo?.trim() || "Missão, visão, valores e essência da marca";
+}
+
+function visualSummary(c: BrandCanvasV2): string {
+  const parts: string[] = [];
+  if (c.visualIdentity?.visualAesthetic) parts.push(c.visualIdentity.visualAesthetic);
+  if (c.visualIdentity?.colors?.primary) parts.push(c.visualIdentity.colors.primary);
+  return parts.length ? parts.join(" · ") : "Configure cores, logo e estética";
+}
+
+function voiceSummary(c: BrandCanvasV2): string {
+  return c.voice?.toneType || c.brandVoice || "Defina o tom de voz da marca";
+}
+
+function productsSummary(c: BrandCanvasV2): string {
+  if (!c.products?.length) return "Adicione produtos e serviços";
+  return c.products.slice(0, 3).map(p => p.name).join(", ");
+}
+
+function audienceSummary(c: BrandCanvasV2): string {
+  const parts: string[] = [];
+  if (c.personas?.length) parts.push(`${c.personas.length} persona(s)`);
+  if (c.painPoints?.length) parts.push(`${c.painPoints.length} dor(es)`);
+  if (parts.length) return parts.join(" · ");
+  return c.targetAudience?.trim()?.substring(0, 80) || "Cliente ideal, dores e emoções";
+}
+
+function anglesSummary(c: BrandCanvasV2): string {
+  if (c.valueProposition?.trim()) return c.valueProposition.substring(0, 80);
+  if (c.problemsAndDesires?.length) return `${c.problemsAndDesires.length} ângulo(s)`;
+  return "Gatilhos, proposta de valor e estratégias";
+}
+
+function contentSummary(c: BrandCanvasV2): string {
+  const types = c.contentStrategy?.idealContentTypes || c.idealContentTypes || [];
+  if (types.length) return types.slice(0, 4).join(", ");
+  return "Configure estratégia de conteúdo";
+}
+
+function referencesSummary(c: BrandCanvasV2): string {
+  const r = c.references || {};
+  const parts: string[] = [];
+  if (r.competitors?.length) parts.push(`${r.competitors.length} concorrente(s)`);
+  if (r.avoidWords?.length) parts.push(`${r.avoidWords.length} termo(s) a evitar`);
+  if (r.referenceBrands?.length) parts.push(`${r.referenceBrands.length} ref.`);
+  return parts.length ? parts.join(" · ") : "Concorrentes, referências e termos a evitar";
+}
+
+// ==========================================
+// Main Component
+// ==========================================
+
+export default function BrandCanvasPage() {
+  const [canvas, setCanvas] = useState<BrandCanvasV2>(emptyCanvas());
+  const [activeSheet, setActiveSheet] = useState<SectionSheet>(null);
+  const [aiPanelOpen, setAIPanelOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Fetch active company
+  const { data: companyData } = useQuery<any>({
     queryKey: ["/api/active-company"],
   });
-  const company = activeCompany?.company;
-  const companyId = company?.id;
+  // company.id is always the Company table ID; companyData.id may be the companyMember.id
+  const companyId = companyData?.company?.id ?? companyData?.companyId;
 
-  // Buscar Brand Canvas
-  const { data, isLoading } = useQuery<CanvasResponse>({
+  // Fetch canvas data
+  const { data: canvasData, isLoading } = useQuery<CanvasResponse>({
     queryKey: [`/api/companies/${companyId}/brand-canvas`],
     enabled: !!companyId,
-    select: (d) => {
-      if (!loaded && d.brandCanvas) {
-        setCanvas({ ...emptyCanvas(), ...d.brandCanvas });
-        setLoaded(true);
-      } else if (!loaded) {
-        setLoaded(true);
-      }
-      return d;
-    },
   });
 
-  const enrichment = data?.enrichmentData;
+  // Load canvas data — skip if user has unsaved local edits
+  useEffect(() => {
+    if (canvasData?.brandCanvas && !isDirty) {
+      setCanvas({ ...emptyCanvas(), ...canvasData.brandCanvas });
+    }
+  }, [canvasData]);
 
-  // Mutation para salvar
+  // Polling for processing status
+  const isPollingActive = !!companyId && (canvasData?.processingStatus?.status === 'processing' || canvas.processing?.status === 'processing' || isGenerating);
+
+  const { data: statusData } = useQuery({
+    queryKey: [`/api/companies/${companyId}/brand-canvas/status`],
+    enabled: isPollingActive,
+    refetchInterval: 2000,
+  });
+
+  // When processing completes or fails via polling, refetch canvas
+  useEffect(() => {
+    if (!statusData) return;
+    const s = statusData as any;
+    if (s.status === 'completed' || s.status === 'failed') {
+      setIsGenerating(false);
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/brand-canvas`] });
+      if (s.status === 'failed') {
+        toast.error("Erro na análise de IA", { description: s.error || "Pipeline falhou. Tente novamente." });
+      }
+    }
+  }, [statusData, companyId]);
+
+  // Polling timeout — stop after 3 minutes
+  useEffect(() => {
+    if (!isGenerating) return;
+    const timer = setTimeout(() => {
+      setIsGenerating(false);
+      toast.error("Timeout na geração", {
+        description: "O pipeline demorou mais de 3 minutos. Tente novamente.",
+        action: {
+          label: "Tentar novamente",
+          onClick: () => generateMutation.mutate({}),
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/brand-canvas`] });
+    }, 180_000); // 3 minutes
+    return () => clearTimeout(timer);
+    // generateMutation is stable by ref (TanStack Query) — no need in deps
+  }, [isGenerating, companyId]);
+
+  // WebSocket listener for real-time updates
+  useEffect(() => {
+    if (!companyId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws: WebSocket | null = null;
+
+    try {
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws/notifications`);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'brand_canvas:processing' && data.companyId === companyId) {
+            setCanvas(prev => ({
+              ...prev,
+              processing: {
+                ...prev.processing!,
+                status: 'processing',
+                currentStep: data.step,
+                steps: prev.processing?.steps?.map(s =>
+                  s.name === data.step ? { ...s, status: data.status } : s
+                ),
+              },
+            }));
+          }
+          if (data.type === 'brand_canvas:completed' && data.companyId === companyId) {
+            setIsGenerating(false);
+            queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/brand-canvas`] });
+            toast.success("Análise de IA concluída!", { description: `Score de confiança: ${data.confidenceScore}%` });
+            setAIPanelOpen(false);
+          }
+          if (data.type === 'brand_canvas:failed' && data.companyId === companyId) {
+            setIsGenerating(false);
+            toast.error("Erro na análise de IA", {
+              description: data.error || "Pipeline falhou. Verifique as configurações.",
+              action: {
+                label: "Tentar novamente",
+                onClick: () => generateMutation.mutate({}),
+              },
+            });
+            queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/brand-canvas`] });
+          }
+        } catch {}
+      };
+    } catch {}
+
+    return () => { ws?.close(); };
+  }, [companyId]);
+
+  // Save mutation
   const saveMutation = useMutation({
-    mutationFn: async (data: BrandCanvas) => {
-      const res = await apiRequest("PUT", `/api/companies/${companyId}/brand-canvas`, data);
+    mutationFn: async (data: BrandCanvasV2) => {
+      if (!companyId) throw new Error("Company not loaded");
+      const res = await apiRequest('PUT', `/api/companies/${companyId}/brand-canvas`, data);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/brand-canvas`] });
       queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
       toast.success("Brand Canvas salvo!");
+      setIsDirty(false);
     },
-    onError: () => toast.error("Erro ao salvar"),
+    onError: () => toast.error("Erro ao salvar Brand Canvas"),
   });
 
-  // Helper para atualizar campo simples
-  const set = useCallback(<K extends keyof BrandCanvas>(key: K, value: BrandCanvas[K]) => {
-    setCanvas(prev => ({ ...prev, [key]: value }));
+  // Generate mutation
+  const generateMutation = useMutation({
+    mutationFn: async (context?: { questionnaire?: any }) => {
+      const res = await apiRequest('POST', `/api/companies/${companyId}/brand-canvas/generate`, context || {});
+      return res.json();
+    },
+    onSuccess: () => {
+      setAIPanelOpen(true);
+      // Set initial processing state locally
+      setCanvas(prev => ({
+        ...prev,
+        processing: {
+          version: 2,
+          status: 'processing',
+          steps: [
+            { name: 'cnpj', status: 'pending' },
+            { name: 'website', status: 'pending' },
+            { name: 'visual', status: 'pending' },
+            { name: 'social', status: 'pending' },
+            { name: 'voice', status: 'pending' },
+            { name: 'synthesis', status: 'pending' },
+          ],
+        },
+      }));
+      toast.info("Pipeline de IA iniciado...");
+    },
+    onError: (error: any) => {
+      console.error("[BrandCanvas] Generate error:", error);
+      toast.error("Erro ao gerar Brand Canvas", { description: error?.message });
+    },
+  });
+
+  // Apply mutation
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Company not loaded");
+      const res = await apiRequest('POST', `/api/companies/${companyId}/brand-canvas/apply`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
+      toast.success(`${data.appliedFields?.length || 0} campos aplicados!`);
+    },
+    onError: () => toast.error("Erro ao aplicar Brand Canvas"),
+  });
+
+  // Regenerate section mutation
+  const regenerateMutation = useMutation({
+    mutationFn: async (section: string) => {
+      const res = await apiRequest('POST', `/api/companies/${companyId}/brand-canvas/generate-section`, { section });
+      return res.json();
+    },
+    onSuccess: () => toast.info("Regenerando seção..."),
+    onError: () => toast.error("Erro ao regenerar seção"),
+  });
+
+  // Canvas update helpers
+  const updateCanvas = useCallback((partial: Partial<BrandCanvasV2>) => {
+    setCanvas(prev => ({ ...prev, ...partial }));
+    setIsDirty(true);
   }, []);
 
-  // Calcular score localmente
-  const completionScore = useMemo(() => {
-    let filled = 0;
-    const total = 12;
-    if (canvas.aboutBrand?.trim()) filled++;
-    if (canvas.whatWeDo?.trim()) filled++;
-    if (canvas.differentials?.trim()) filled++;
-    if (canvas.brandAssets?.length || canvas.referenceCreators?.trim() || canvas.referenceUrls?.length) filled++;
-    if (canvas.products?.length) filled++;
-    if (canvas.targetAudience?.trim()) filled++;
-    if (canvas.personas?.length) filled++;
-    if (canvas.brandVoice) filled++;
-    if (canvas.doList?.length || canvas.dontList?.length) filled++;
-    if (canvas.idealContentTypes?.length) filled++;
-    if (canvas.hooks?.length) filled++;
-    if (canvas.keyMessages?.length || canvas.callToAction?.trim()) filled++;
-    return Math.round((filled / total) * 100);
-  }, [canvas]);
+  const handleSave = () => saveMutation.mutate(canvas);
 
+  // Auto-save when closing a sheet
+  const handleSheetClose = useCallback(() => {
+    setActiveSheet(null);
+    if (isDirty) {
+      saveMutation.mutate(canvas);
+    }
+  }, [isDirty, canvas, saveMutation]);
+
+  const isProcessing = canvas.processing?.status === 'processing' || generateMutation.isPending;
+  const completionScore = canvasData?.completionScore ?? 0;
+  const processing = canvas.processing || canvasData?.processingStatus || { version: 2, status: 'idle' as const };
+  // Processing progress for AI panel
+  const processingSteps = processing.steps || [];
+  const completedStepsCount = processingSteps.filter((s: BrandCanvasProcessingStep) => s.status === 'completed').length;
+  const processingProgress = processingSteps.length > 0 ? Math.round((completedStepsCount / processingSteps.length) * 100) : 0;
+
+  // Section cards config — 3 color categories
+  const sections = [
+    {
+      id: 'identity' as SectionSheet,
+      title: "Identidade",
+      icon: Building2,
+      color: "indigo",
+      completion: identityCompletion(canvas),
+      summary: identitySummary(canvas),
+    },
+    {
+      id: 'visual' as SectionSheet,
+      title: "Visual",
+      icon: Paintbrush,
+      color: "indigo",
+      completion: visualCompletion(canvas),
+      summary: visualSummary(canvas),
+      section: 'visual' as const,
+    },
+    {
+      id: 'voice' as SectionSheet,
+      title: "Voz da Marca",
+      icon: MessageSquare,
+      color: "violet",
+      completion: voiceCompletion(canvas),
+      summary: voiceSummary(canvas),
+      section: 'voice' as const,
+    },
+    {
+      id: 'content' as SectionSheet,
+      title: "Conteúdo",
+      icon: Sparkles,
+      color: "violet",
+      completion: contentCompletion(canvas),
+      summary: contentSummary(canvas),
+      section: 'content' as const,
+    },
+    {
+      id: 'products' as SectionSheet,
+      title: "Produtos",
+      icon: ShoppingCart,
+      color: "teal",
+      completion: productsCompletion(canvas),
+      summary: productsSummary(canvas),
+    },
+    {
+      id: 'audience' as SectionSheet,
+      title: "Público-Alvo",
+      icon: Users,
+      color: "teal",
+      completion: audienceCompletion(canvas),
+      summary: audienceSummary(canvas),
+      section: 'audience' as const,
+    },
+    {
+      id: 'angles' as SectionSheet,
+      title: "Ângulos & Gatilhos",
+      icon: Zap,
+      color: "teal",
+      completion: anglesCompletion(canvas),
+      summary: anglesSummary(canvas),
+      section: 'angles' as const,
+    },
+    {
+      id: 'references' as SectionSheet,
+      title: "Referências",
+      icon: Image,
+      color: "teal",
+      completion: referencesCompletion(canvas),
+      summary: referencesSummary(canvas),
+    },
+  ];
+
+  // Skeleton loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-20 w-20 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+        <Separator />
+        {/* Grid skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
-  const activeConfig = TAB_CONFIG.find(t => t.id === activeTab)!;
-
   return (
-    <div className="min-h-screen pb-24">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <Sparkles className="h-5 w-5 text-white" />
+      <BrandCanvasHeader
+        completionScore={completionScore}
+        processing={processing as BrandCanvasProcessingMeta}
+        onGenerate={() => {
+          if (!companyId) {
+            toast.error("Empresa não carregada. Recarregue a página.");
+            return;
+          }
+          setIsGenerating(true);
+          generateMutation.mutate({});
+        }}
+        onApply={() => applyMutation.mutate()}
+        isGenerating={isProcessing}
+        isApplying={applyMutation.isPending}
+      />
+
+      <Separator />
+
+      {/* Empty state */}
+      {completionScore === 0 && !processing?.lastProcessedAt && (
+        <div className="rounded-xl border-2 border-dashed border-primary/20 bg-primary/5 p-8 text-center space-y-4">
+          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <Sparkles className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Brand Canvas</h1>
-            <p className="text-sm text-muted-foreground">Base de conhecimento da sua marca para briefings e campanhas</p>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1">
-            <Progress value={completionScore} className="h-2" />
-          </div>
-          <span className="text-sm font-medium text-muted-foreground min-w-[3rem] text-right">
-            {completionScore}%
-          </span>
-        </div>
-      </div>
-
-      {/* CTA Enriquecer Empresa com IA */}
-      {company && <EnrichmentCTACard company={company} companyId={companyId!} />}
-
-      {/* Tab navigation */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
-        {TAB_CONFIG.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                relative flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200
-                ${isActive
-                  ? `bg-gradient-to-b ${GRADIENTS[tab.color]} ${ACTIVE_BORDER[tab.color]} shadow-sm`
-                  : "bg-card/50 border-border/50 hover:bg-muted/50"
-                }
-              `}
-            >
-              <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                isActive
-                  ? `bg-gradient-to-br ${ICON_GRADIENTS[tab.color]} shadow-md`
-                  : "bg-muted"
-              }`}>
-                <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-muted-foreground"}`} />
-              </div>
-              <span className={`text-xs font-medium ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Tab content */}
-      <div className="space-y-4 animate-in fade-in-0 duration-300" key={activeTab}>
-        {activeTab === "marca" && (
-          <TabMarca canvas={canvas} set={set} enrichment={enrichment} />
-        )}
-        {activeTab === "referencias" && (
-          <TabReferencias canvas={canvas} set={set} enrichment={enrichment} />
-        )}
-        {activeTab === "produtos" && (
-          <TabProdutos canvas={canvas} set={set} enrichment={enrichment} />
-        )}
-        {activeTab === "publico" && (
-          <TabPublico canvas={canvas} set={set} enrichment={enrichment} />
-        )}
-        {activeTab === "tom" && (
-          <TabTomEstilo canvas={canvas} set={set} enrichment={enrichment} />
-        )}
-        {activeTab === "ganchos" && (
-          <TabGanchos canvas={canvas} set={set} />
-        )}
-      </div>
-
-      {/* Sticky save bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-lg p-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className={`h-2 w-2 rounded-full ${saveMutation.isPending ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
-            {saveMutation.isPending ? "Salvando..." : "Pronto para salvar"}
-          </div>
-          <Button
-            onClick={() => saveMutation.mutate(canvas)}
-            disabled={saveMutation.isPending}
-            className="gap-2"
-          >
-            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar Canvas
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Enriquecimento com IA
-// ============================================================
-
-function EnrichmentCTACard({ company, companyId }: { company: CompanyInfo; companyId: number }) {
-  const [isEnriching, setIsEnriching] = useState(false);
-  const [enrichStep, setEnrichStep] = useState("");
-
-  const handleEnrich = async () => {
-    setIsEnriching(true);
-    let enrichedCount = 0;
-
-    try {
-      // 1. CNPJ enrichment
-      const cnpjDigits = company.cnpj?.replace(/\D/g, "") || "";
-      if (cnpjDigits.length === 14) {
-        setEnrichStep("Consultando CNPJ...");
-        try {
-          const res = await fetch(`/api/enrichment/cnpj/${cnpjDigits}`, { credentials: "include" });
-          if (res.ok) enrichedCount++;
-        } catch { /* ignore */ }
-      }
-
-      // 2. Website enrichment
-      if (company.website && company.website.length >= 5) {
-        setEnrichStep("Analisando website...");
-        let url = company.website;
-        if (!url.startsWith("http")) url = "https://" + url;
-        try {
-          const res = await fetch("/api/enrichment/website", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ url }),
-          });
-          if (res.ok) enrichedCount++;
-        } catch { /* ignore */ }
-      }
-
-      // 3. Instagram enrichment
-      const igUser = company.instagram?.replace("@", "").trim();
-      if (igUser && igUser.length > 0) {
-        setEnrichStep("Validando Instagram...");
-        try {
-          const res = await fetch(`/api/enrichment/instagram/${encodeURIComponent(igUser)}`, { credentials: "include" });
-          if (res.ok) enrichedCount++;
-        } catch { /* ignore */ }
-      }
-
-      // 4. Generate briefing with AI
-      setEnrichStep("Gerando briefing com IA...");
-      try {
-        await fetch("/api/enrichment/generate-description-v2", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            companyId: company.id,
-            formData: {
-              name: company.name,
-              tradeName: company.tradeName,
-              category: company.category,
-              tagline: company.tagline,
-              website: company.website,
-              instagram: company.instagram,
-              city: company.city,
-              state: company.state,
-            },
-            includeBriefing: true,
-          }),
-        });
-        enrichedCount++;
-      } catch { /* ignore */ }
-
-      // Refresh both company data and brand canvas
-      queryClient.invalidateQueries({ queryKey: ["/api/active-company"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/brand-canvas`] });
-
-      if (enrichedCount > 0) {
-        toast.success("Enriquecimento concluído!", {
-          description: `${enrichedCount} fonte(s) processada(s). Dados atualizados.`,
-        });
-      } else {
-        toast.error("Nenhum dado enriquecido", {
-          description: "Preencha CNPJ, Website ou Instagram nas configurações antes de enriquecer.",
-        });
-      }
-    } catch {
-      toast.error("Erro de conexão");
-    } finally {
-      setIsEnriching(false);
-      setEnrichStep("");
-    }
-  };
-
-  return (
-    <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent overflow-hidden mb-6">
-      <CardContent className="p-5">
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shrink-0">
-            <Wand2 className="h-6 w-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <h3 className="font-semibold text-base">Enriquecer com IA</h3>
-              {company.enrichmentScore != null && (
-                <Badge variant="secondary" className="text-xs">
-                  Score: {company.enrichmentScore}/100
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {isEnriching && enrichStep ? enrichStep : "Coleta automática via CNPJ, Website e Instagram para preencher o Canvas."}
+            <h2 className="text-lg font-semibold">Seu Brand Canvas está vazio</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              A IA pode analisar seu site, Instagram e dados da empresa para preencher automaticamente.
             </p>
           </div>
-          <Button
-            onClick={handleEnrich}
-            disabled={isEnriching}
-            className="shrink-0 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-500/90 hover:to-purple-600/90 shadow-md"
-            size="lg"
-          >
-            {isEnriching ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Enriquecendo...
-              </>
-            ) : (
-              <>
-                <Wand2 className="h-4 w-4 mr-2" />
-                Enriquecer Agora
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================================
-// Componentes auxiliares
-// ============================================================
-
-interface TabProps {
-  canvas: BrandCanvas;
-  set: <K extends keyof BrandCanvas>(key: K, value: BrandCanvas[K]) => void;
-  enrichment?: CanvasResponse["enrichmentData"];
-}
-
-function EnrichmentHint({ text }: { text: string }) {
-  return (
-    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm">
-      <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-      <span className="text-muted-foreground">{text}</span>
-    </div>
-  );
-}
-
-function SectionCard({ title, icon: Icon, color, children }: {
-  title: string;
-  icon: React.ElementType;
-  color: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card className="border-none shadow-md">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <div className={`h-8 w-8 rounded-lg bg-gradient-to-br ${ICON_GRADIENTS[color]} flex items-center justify-center`}>
-            <Icon className="h-4 w-4 text-white" />
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              onClick={() => { setIsGenerating(true); generateMutation.mutate({}); }}
+              className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
+            >
+              <Sparkles className="h-4 w-4 mr-2" /> Gerar com IA
+            </Button>
+            <Button variant="outline" onClick={() => setActiveSheet('identity')}>
+              Preencher manualmente
+            </Button>
           </div>
-          <CardTitle className="text-base">{title}</CardTitle>
         </div>
-        <Separator className="mt-3" />
-      </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
-    </Card>
-  );
-}
-
-// ============================================================
-// Tab 1 — Marca
-// ============================================================
-function TabMarca({ canvas, set, enrichment }: TabProps) {
-  return (
-    <div className="space-y-4">
-      {enrichment?.websiteAbout && !canvas.aboutBrand?.trim() && (
-        <EnrichmentHint text={`Extraído do seu site: "${enrichment.websiteAbout.slice(0, 150)}..."`} />
       )}
 
-      <SectionCard title="Sobre a Marca" icon={Building2} color="blue">
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="aboutBrand">Sobre a marca</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Conte a história da sua marca. Quem é, como surgiu, qual a missão.
-            </p>
-            <Textarea
-              id="aboutBrand"
-              value={canvas.aboutBrand || ""}
-              onChange={e => set("aboutBrand", e.target.value)}
-              placeholder="Nossa marca nasceu com o propósito de..."
-              maxLength={500}
-              rows={4}
-              className="bg-muted/30 border-border/50 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20"
+      {/* Grid of section cards with stagger animation */}
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" staggerDelay={0.06}>
+        {sections.map(sec => (
+          <StaggerItem key={sec.id}>
+            <SectionCard
+              title={sec.title}
+              icon={sec.icon}
+              color={sec.color}
+              completionPercent={sec.completion}
+              summary={sec.summary}
+              onClick={() => setActiveSheet(sec.id)}
+              onRegenerate={sec.section ? () => regenerateMutation.mutate(sec.section!) : undefined}
+              isRegenerating={regenerateMutation.isPending}
             />
-            <p className="text-xs text-muted-foreground mt-1 text-right">{(canvas.aboutBrand || "").length}/500</p>
-          </div>
-
-          <div>
-            <Label htmlFor="whatWeDo">O que fazemos</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Descreva seus produtos/serviços de forma clara e objetiva.
-            </p>
-            <Textarea
-              id="whatWeDo"
-              value={canvas.whatWeDo || ""}
-              onChange={e => set("whatWeDo", e.target.value)}
-              placeholder="Oferecemos produtos naturais para skincare..."
-              maxLength={500}
-              rows={3}
-              className="bg-muted/30 border-border/50 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20"
-            />
-            <p className="text-xs text-muted-foreground mt-1 text-right">{(canvas.whatWeDo || "").length}/500</p>
-          </div>
-
-          <div>
-            <Label htmlFor="differentials">Diferenciais</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              O que torna sua marca única? Por que os clientes escolhem você?
-            </p>
-            <Textarea
-              id="differentials"
-              value={canvas.differentials || ""}
-              onChange={e => set("differentials", e.target.value)}
-              placeholder="Somos a única marca que..."
-              maxLength={500}
-              rows={3}
-              className="bg-muted/30 border-border/50 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20"
-            />
-            <p className="text-xs text-muted-foreground mt-1 text-right">{(canvas.differentials || "").length}/500</p>
-          </div>
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-// ============================================================
-// Tab 2 — Referências & Ativos
-// ============================================================
-function TabReferencias({ canvas, set }: TabProps) {
-  const [newUrl, setNewUrl] = useState("");
-  const [newCompetitor, setNewCompetitor] = useState("");
-
-  const addUrl = () => {
-    if (!newUrl.trim()) return;
-    set("referenceUrls", [...(canvas.referenceUrls || []), newUrl.trim()]);
-    setNewUrl("");
-  };
-
-  const addCompetitor = () => {
-    if (!newCompetitor.trim()) return;
-    set("competitorBrands", [...(canvas.competitorBrands || []), newCompetitor.trim()]);
-    setNewCompetitor("");
-  };
-
-  return (
-    <div className="space-y-4">
-      <SectionCard title="Creators de Referência" icon={UserPlus} color="purple">
-        <div>
-          <Label htmlFor="refCreators">Quais creators/influencers representam o estilo da sua marca?</Label>
-          <Textarea
-            id="refCreators"
-            value={canvas.referenceCreators || ""}
-            onChange={e => set("referenceCreators", e.target.value)}
-            placeholder="@creator1, @creator2 — descreva o estilo que gosta"
-            rows={3}
-            maxLength={500}
-            className="bg-muted/30 border-border/50 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20"
-          />
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Marcas Concorrentes" icon={Target} color="purple">
-        <div className="flex gap-2">
-          <Input
-            value={newCompetitor}
-            onChange={e => setNewCompetitor(e.target.value)}
-            placeholder="Nome da marca concorrente"
-            onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
-            className="bg-muted/30 border-border/50"
-          />
-          <Button variant="outline" size="icon" onClick={addCompetitor}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {(canvas.competitorBrands || []).map((brand, i) => (
-            <Badge key={i} variant="secondary" className="gap-1 pr-1">
-              {brand}
-              <button
-                onClick={() => set("competitorBrands", canvas.competitorBrands!.filter((_, j) => j !== i))}
-                className="ml-1 hover:text-destructive"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="URLs de Referência" icon={Link2} color="purple">
-        <p className="text-xs text-muted-foreground">
-          Links de conteúdo, posts ou vídeos que representam o estilo desejado.
-        </p>
-        <div className="flex gap-2">
-          <Input
-            value={newUrl}
-            onChange={e => setNewUrl(e.target.value)}
-            placeholder="https://instagram.com/p/..."
-            onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addUrl())}
-            className="bg-muted/30 border-border/50"
-          />
-          <Button variant="outline" size="icon" onClick={addUrl}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="space-y-2">
-          {(canvas.referenceUrls || []).map((url, i) => (
-            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/50">
-              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-sm truncate flex-1">{url}</span>
-              <button
-                onClick={() => set("referenceUrls", canvas.referenceUrls!.filter((_, j) => j !== i))}
-                className="hover:text-destructive"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-// ============================================================
-// Tab 3 — Produtos
-// ============================================================
-function TabProdutos({ canvas, set, enrichment }: TabProps) {
-  const products = canvas.products || [];
-
-  const addProduct = () => {
-    set("products", [...products, { name: "", description: "", benefits: "", valueProposition: "" }]);
-  };
-
-  const updateProduct = (index: number, field: keyof BrandCanvasProduct, value: string) => {
-    const updated = [...products];
-    updated[index] = { ...updated[index], [field]: value };
-    set("products", updated);
-  };
-
-  const removeProduct = (index: number) => {
-    set("products", products.filter((_, i) => i !== index));
-  };
-
-  return (
-    <div className="space-y-4">
-      {enrichment?.websiteProducts?.length && !products.length ? (
-        <EnrichmentHint text={`Produtos detectados no seu site: ${enrichment.websiteProducts.join(", ")}`} />
-      ) : null}
-
-      <SectionCard title="Produtos & Serviços" icon={ShoppingCart} color="emerald">
-        <p className="text-xs text-muted-foreground">
-          Cadastre seus principais produtos/serviços com detalhes para briefings mais precisos.
-        </p>
-
-        <div className="space-y-4">
-          {products.map((product, i) => (
-            <div key={i} className="p-4 rounded-xl border border-border/50 bg-muted/20 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-xs text-white font-bold">
-                    {i + 1}
-                  </div>
-                  <span className="text-sm font-medium">{product.name || `Produto ${i + 1}`}</span>
-                </div>
-                <button onClick={() => removeProduct(i)} className="text-muted-foreground hover:text-destructive">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Nome</Label>
-                  <Input
-                    value={product.name}
-                    onChange={e => updateProduct(i, "name", e.target.value)}
-                    placeholder="Nome do produto"
-                    className="bg-muted/30 border-border/50 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Proposta de valor</Label>
-                  <Input
-                    value={product.valueProposition || ""}
-                    onChange={e => updateProduct(i, "valueProposition", e.target.value)}
-                    placeholder="O que torna único"
-                    className="bg-muted/30 border-border/50 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Descrição</Label>
-                  <Textarea
-                    value={product.description || ""}
-                    onChange={e => updateProduct(i, "description", e.target.value)}
-                    placeholder="Descreva o produto"
-                    rows={2}
-                    className="bg-muted/30 border-border/50 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Benefícios</Label>
-                  <Textarea
-                    value={product.benefits || ""}
-                    onChange={e => updateProduct(i, "benefits", e.target.value)}
-                    placeholder="Principais benefícios"
-                    rows={2}
-                    className="bg-muted/30 border-border/50 text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <Button variant="outline" onClick={addProduct} className="w-full gap-2 border-dashed">
-          <Plus className="h-4 w-4" /> Adicionar produto
-        </Button>
-      </SectionCard>
-    </div>
-  );
-}
-
-// ============================================================
-// Tab 4 — Público-Alvo
-// ============================================================
-function TabPublico({ canvas, set }: TabProps) {
-  const personas = canvas.personas || [];
-
-  const PERSONA_COLORS = ["violet", "sky", "rose", "lime", "cyan"];
-
-  const addPersona = () => {
-    set("personas", [...personas, { name: "", ageRange: "", painPoints: [], desires: [], blockers: [] }]);
-  };
-
-  const updatePersona = (index: number, field: keyof BrandCanvasPersona, value: any) => {
-    const updated = [...personas];
-    updated[index] = { ...updated[index], [field]: value };
-    set("personas", updated);
-  };
-
-  const removePersona = (index: number) => {
-    set("personas", personas.filter((_, i) => i !== index));
-  };
-
-  return (
-    <div className="space-y-4">
-      <SectionCard title="Público-Alvo Geral" icon={Users} color="orange">
-        <div>
-          <Label htmlFor="targetAudience">Descrição do público-alvo</Label>
-          <p className="text-xs text-muted-foreground mb-2">
-            Descreva quem é o cliente ideal da sua marca.
-          </p>
-          <Textarea
-            id="targetAudience"
-            value={canvas.targetAudience || ""}
-            onChange={e => set("targetAudience", e.target.value)}
-            placeholder="Mulheres de 25-40 anos, interessadas em skincare natural..."
-            maxLength={500}
-            rows={3}
-            className="bg-muted/30 border-border/50 focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20"
-          />
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Personas" icon={Target} color="orange">
-        <p className="text-xs text-muted-foreground">
-          Crie personas detalhadas para guiar a criação de conteúdo.
-        </p>
-
-        <div className="space-y-4">
-          {personas.map((persona, i) => {
-            const color = PERSONA_COLORS[i % PERSONA_COLORS.length];
-            return (
-              <div key={i} className="p-4 rounded-xl border border-border/50 bg-muted/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-full bg-gradient-to-br from-${color}-400 to-${color}-600 flex items-center justify-center text-white font-bold text-sm`}>
-                      {(persona.name || "P")[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <Input
-                        value={persona.name || ""}
-                        onChange={e => updatePersona(i, "name", e.target.value)}
-                        placeholder={`Persona ${i + 1}`}
-                        className="bg-transparent border-none p-0 h-auto text-sm font-medium focus-visible:ring-0"
-                      />
-                      <Input
-                        value={persona.ageRange || ""}
-                        onChange={e => updatePersona(i, "ageRange", e.target.value)}
-                        placeholder="Faixa etária: 25-35"
-                        className="bg-transparent border-none p-0 h-auto text-xs text-muted-foreground focus-visible:ring-0"
-                      />
-                    </div>
-                  </div>
-                  <button onClick={() => removePersona(i)} className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <ListField
-                    label="Dores"
-                    items={persona.painPoints || []}
-                    onChange={items => updatePersona(i, "painPoints", items)}
-                    placeholder="Adicionar dor"
-                    badgeColor="red"
-                  />
-                  <ListField
-                    label="Desejos"
-                    items={persona.desires || []}
-                    onChange={items => updatePersona(i, "desires", items)}
-                    placeholder="Adicionar desejo"
-                    badgeColor="emerald"
-                  />
-                  <ListField
-                    label="Bloqueios"
-                    items={persona.blockers || []}
-                    onChange={items => updatePersona(i, "blockers", items)}
-                    placeholder="Adicionar bloqueio"
-                    badgeColor="amber"
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <Button variant="outline" onClick={addPersona} className="w-full gap-2 border-dashed">
-          <UserPlus className="h-4 w-4" /> Adicionar persona
-        </Button>
-      </SectionCard>
-    </div>
-  );
-}
-
-// ============================================================
-// Tab 5 — Tom & Estilo
-// ============================================================
-function TabTomEstilo({ canvas, set, enrichment }: TabProps) {
-  return (
-    <div className="space-y-4">
-      <SectionCard title="Tom de Voz" icon={MessageSquare} color="pink">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Tom de voz principal</Label>
-            <Select
-              value={canvas.brandVoice || ""}
-              onValueChange={v => set("brandVoice", v)}
-            >
-              <SelectTrigger className="bg-muted/30 border-border/50">
-                <SelectValue placeholder="Selecione o tom" />
-              </SelectTrigger>
-              <SelectContent>
-                {BRAND_VOICE_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Descrição do tom</Label>
-            <Input
-              value={canvas.brandVoiceDescription || ""}
-              onChange={e => set("brandVoiceDescription", e.target.value)}
-              placeholder="Como uma amiga que entende de skincare"
-              className="bg-muted/30 border-border/50"
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* DO's e DON'Ts lado a lado */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="border-none shadow-md border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <Check className="h-4 w-4 text-emerald-500" />
-              </div>
-              <CardTitle className="text-sm text-emerald-600 dark:text-emerald-400">DO's — Pode e deve</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ListField
-              items={canvas.doList || []}
-              onChange={items => set("doList", items)}
-              placeholder="Adicionar DO"
-              badgeColor="emerald"
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-md border-l-4 border-l-red-500">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-red-500/20 flex items-center justify-center">
-                <Ban className="h-4 w-4 text-red-500" />
-              </div>
-              <CardTitle className="text-sm text-red-600 dark:text-red-400">DON'Ts — Evitar</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ListField
-              items={canvas.dontList || []}
-              onChange={items => set("dontList", items)}
-              placeholder="Adicionar DON'T"
-              badgeColor="red"
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <SectionCard title="Tipos de Conteúdo Ideal" icon={Image} color="pink">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {IDEAL_CONTENT_TYPES.map(type => {
-            const checked = (canvas.idealContentTypes || []).includes(type.value);
-            return (
-              <label
-                key={type.value}
-                className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                  checked ? "bg-pink-500/10 border-pink-500/30" : "border-border/50 hover:bg-muted/50"
-                }`}
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(c) => {
-                    const current = canvas.idealContentTypes || [];
-                    set("idealContentTypes", c
-                      ? [...current, type.value]
-                      : current.filter(v => v !== type.value)
-                    );
-                  }}
-                />
-                <span className="text-sm">{type.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="O que Evitar" icon={Ban} color="pink">
-        <Textarea
-          value={canvas.avoidTopics || ""}
-          onChange={e => set("avoidTopics", e.target.value)}
-          placeholder="Temas, palavras ou estilos que não combinam com a marca..."
-          maxLength={500}
-          rows={3}
-          className="bg-muted/30 border-border/50 focus:border-pink-500/50 focus:ring-2 focus:ring-pink-500/20"
-        />
-      </SectionCard>
-    </div>
-  );
-}
-
-// ============================================================
-// Tab 6 — Ganchos & Messaging
-// ============================================================
-function TabGanchos({ canvas, set }: TabProps & { enrichment?: any }) {
-  return (
-    <div className="space-y-4">
-      <SectionCard title="Ganchos que Funcionam" icon={Sparkles} color="amber">
-        <p className="text-xs text-muted-foreground">
-          Frases de abertura, hooks de vídeo e ganchos que performam bem com seu público.
-        </p>
-        <NumberedListField
-          items={canvas.hooks || []}
-          onChange={items => set("hooks", items)}
-          placeholder="Ex: Você sabia que 90% das pessoas..."
-          color="amber"
-        />
-      </SectionCard>
-
-      <SectionCard title="Mensagens-Chave" icon={Megaphone} color="amber">
-        <p className="text-xs text-muted-foreground">
-          Mensagens que os creators devem transmitir ao falar da sua marca.
-        </p>
-        <NumberedListField
-          items={canvas.keyMessages || []}
-          onChange={items => set("keyMessages", items)}
-          placeholder="Ex: Nosso produto é 100% natural"
-          color="amber"
-        />
-      </SectionCard>
-
-      <SectionCard title="Call to Action" icon={ChevronRight} color="amber">
-        <div>
-          <Label>CTA padrão</Label>
-          <p className="text-xs text-muted-foreground mb-2">
-            O que o público deve fazer após ver o conteúdo?
-          </p>
-          <Input
-            value={canvas.callToAction || ""}
-            onChange={e => set("callToAction", e.target.value)}
-            placeholder="Use o cupom CREATOR20 e ganhe 20% off!"
-            maxLength={300}
-            className="bg-muted/30 border-border/50 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20"
-          />
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-// ============================================================
-// Componentes reutilizáveis
-// ============================================================
-
-function ListField({ label, items, onChange, placeholder, badgeColor }: {
-  label?: string;
-  items: string[];
-  onChange: (items: string[]) => void;
-  placeholder: string;
-  badgeColor: string;
-}) {
-  const [input, setInput] = useState("");
-
-  const add = () => {
-    if (!input.trim()) return;
-    onChange([...items, input.trim()]);
-    setInput("");
-  };
-
-  const colorMap: Record<string, string> = {
-    red: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
-    emerald: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
-    amber: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
-  };
-
-  return (
-    <div className="space-y-2">
-      {label && <Label className="text-xs font-medium">{label}</Label>}
-      <div className="flex gap-1.5">
-        <Input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={placeholder}
-          onKeyDown={e => e.key === "Enter" && (e.preventDefault(), add())}
-          className="bg-muted/30 border-border/50 text-sm h-8"
-        />
-        <Button variant="ghost" size="icon" onClick={add} className="h-8 w-8 shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((item, i) => (
-          <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs ${colorMap[badgeColor] || ""}`}>
-            {item}
-            <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="hover:opacity-70">
-              <X className="h-3 w-3" />
-            </button>
-          </span>
+          </StaggerItem>
         ))}
-      </div>
-    </div>
-  );
-}
+      </StaggerContainer>
 
-function NumberedListField({ items, onChange, placeholder, color }: {
-  items: string[];
-  onChange: (items: string[]) => void;
-  placeholder: string;
-  color: string;
-}) {
-  const [input, setInput] = useState("");
-
-  const add = () => {
-    if (!input.trim()) return;
-    onChange([...items, input.trim()]);
-    setInput("");
-  };
-
-  return (
-    <div className="space-y-3">
-      {items.map((item, i) => (
-        <div key={i} className="flex items-start gap-3 group">
-          <div className={`h-7 w-7 rounded-full bg-gradient-to-br ${ICON_GRADIENTS[color]} flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5`}>
-            {i + 1}
-          </div>
-          <div className="flex-1 p-2.5 rounded-lg bg-muted/30 border border-border/50 text-sm">
-            {item}
-          </div>
-          <button
-            onClick={() => onChange(items.filter((_, j) => j !== i))}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive mt-1"
+      {/* Save bar with animation */}
+      <AnimatePresence>
+        {isDirty && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-950 border-t shadow-lg p-3 flex items-center justify-center gap-3 z-50"
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={placeholder}
-          onKeyDown={e => e.key === "Enter" && (e.preventDefault(), add())}
-          className="bg-muted/30 border-border/50"
-        />
-        <Button variant="outline" size="icon" onClick={add}>
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
+            <span className="text-sm text-muted-foreground">Alterações não salvas</span>
+            <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+              Salvar Canvas
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Pipeline Panel */}
+      <BrandCanvasAIPanel
+        open={aiPanelOpen}
+        onClose={() => setAIPanelOpen(false)}
+        steps={processingSteps as BrandCanvasProcessingStep[]}
+        currentStep={processing.currentStep}
+        status={processing.status || 'idle'}
+        progress={processingProgress}
+        errorMessage={processing.error}
+        onRetry={() => {
+          setIsGenerating(true);
+          generateMutation.mutate({});
+        }}
+      />
+
+      {/* Identity Sheet (inline — expanded with mission/vision/values) */}
+      <Sheet open={activeSheet === 'identity'} onOpenChange={(v) => !v && handleSheetClose()}>
+        <SheetContent className="w-[520px] sm:w-[680px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-indigo-600" />
+              Identidade da Marca
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-5">
+            <FieldWithAI
+              label="Sobre a Marca"
+              value={canvas.aboutBrand || ""}
+              onChange={(v) => updateCanvas({ aboutBrand: v })}
+              multiline
+              maxLength={500}
+              placeholder="Conte a história da marca, seu propósito..."
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FieldWithAI
+                label="Missão"
+                value={canvas.mission || ""}
+                onChange={(v) => updateCanvas({ mission: v })}
+                multiline
+                maxLength={500}
+                placeholder="Propósito da marca..."
+              />
+              <FieldWithAI
+                label="Visão"
+                value={canvas.vision || ""}
+                onChange={(v) => updateCanvas({ vision: v })}
+                multiline
+                maxLength={500}
+                placeholder="Onde a marca quer chegar..."
+              />
+            </div>
+            <FieldWithAI
+              label="O que fazemos"
+              value={canvas.whatWeDo || ""}
+              onChange={(v) => updateCanvas({ whatWeDo: v })}
+              multiline
+              maxLength={500}
+              placeholder="O que a empresa faz e vende..."
+            />
+            <FieldWithAI
+              label="Diferenciais"
+              value={canvas.differentials || ""}
+              onChange={(v) => updateCanvas({ differentials: v })}
+              multiline
+              maxLength={500}
+              placeholder="O que diferencia a marca dos concorrentes..."
+            />
+            <FieldWithAI
+              label="Slogan ou Frase-chave"
+              value={canvas.slogan || ""}
+              onChange={(v) => updateCanvas({ slogan: v })}
+              maxLength={300}
+              placeholder="Ex: 'Beleza e bem-estar com constância'"
+            />
+            <FieldWithAI
+              label="Posicionamento de Mercado"
+              value={canvas.marketPositioning || ""}
+              onChange={(v) => updateCanvas({ marketPositioning: v })}
+              multiline
+              maxLength={500}
+              placeholder="Ex: Premium acessível, líder em inovação..."
+            />
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Valores Principais</label>
+              <TagsInput
+                value={canvas.coreValues || []}
+                onChange={(v) => updateCanvas({ coreValues: v })}
+                placeholder="Digite um valor e pressione Enter..."
+                maxTags={15}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-background border-t pt-3 mt-6 flex justify-end">
+              <Button onClick={handleSheetClose}>Salvar e Fechar</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Visual Identity Sheet */}
+      <BrandCanvasVisualIdentitySheet
+        open={activeSheet === 'visual'}
+        onClose={handleSheetClose}
+        data={canvas.visualIdentity || {}}
+        onChange={(vi) => updateCanvas({ visualIdentity: vi })}
+      />
+
+      {/* Voice Sheet */}
+      <BrandCanvasVoiceSheet
+        open={activeSheet === 'voice'}
+        onClose={handleSheetClose}
+        data={canvas.voice || {}}
+        onChange={(voice) => updateCanvas({ voice })}
+      />
+
+      {/* Products Sheet */}
+      <BrandCanvasProductsSheet
+        open={activeSheet === 'products'}
+        onClose={handleSheetClose}
+        products={canvas.products || []}
+        onChange={(products) => updateCanvas({ products })}
+      />
+
+      {/* Audience Sheet */}
+      <BrandCanvasAudienceSheet
+        open={activeSheet === 'audience'}
+        onClose={handleSheetClose}
+        targetAudience={canvas.targetAudience || ""}
+        demographics={canvas.demographics || ""}
+        personas={canvas.personas || []}
+        painPoints={canvas.painPoints || []}
+        desiredEmotions={canvas.desiredEmotions || []}
+        onChangeAudience={(v) => updateCanvas({ targetAudience: v })}
+        onChangeDemographics={(v) => updateCanvas({ demographics: v })}
+        onChangePersonas={(v) => updateCanvas({ personas: v })}
+        onChangePainPoints={(v) => updateCanvas({ painPoints: v })}
+        onChangeDesiredEmotions={(v) => updateCanvas({ desiredEmotions: v })}
+      />
+
+      {/* Angles & Triggers Sheet */}
+      <BrandCanvasAnglesSheet
+        open={activeSheet === 'angles'}
+        onClose={handleSheetClose}
+        problemsAndDesires={canvas.problemsAndDesires || []}
+        transformationStories={canvas.transformationStories || ""}
+        valueProposition={canvas.valueProposition || ""}
+        commercialStrategies={canvas.commercialStrategies || ""}
+        onChangeProblemsAndDesires={(v) => updateCanvas({ problemsAndDesires: v })}
+        onChangeTransformationStories={(v) => updateCanvas({ transformationStories: v })}
+        onChangeValueProposition={(v) => updateCanvas({ valueProposition: v })}
+        onChangeCommercialStrategies={(v) => updateCanvas({ commercialStrategies: v })}
+      />
+
+      {/* Content Strategy Sheet */}
+      <BrandCanvasContentSheet
+        open={activeSheet === 'content'}
+        onClose={handleSheetClose}
+        data={canvas.contentStrategy || {}}
+        onChange={(contentStrategy) => updateCanvas({ contentStrategy })}
+      />
+
+      {/* References Sheet */}
+      <BrandCanvasReferencesSheet
+        open={activeSheet === 'references'}
+        onClose={handleSheetClose}
+        data={canvas.references || {}}
+        onChange={(references) => updateCanvas({ references })}
+      />
+
     </div>
   );
 }
