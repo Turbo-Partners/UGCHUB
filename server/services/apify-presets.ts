@@ -36,7 +36,11 @@ export interface PresetResult<T> {
   errors: string[];
 }
 
-type BatchInput = { actorKey: string; estimatedItems: number; options?: { includeStartFee?: boolean; includeDownloads?: boolean } };
+type BatchInput = {
+  actorKey: string;
+  estimatedItems: number;
+  options?: { includeStartFee?: boolean; includeDownloads?: boolean };
+};
 
 export interface CreatorFullProfileInput {
   instagramUsername?: string;
@@ -61,24 +65,28 @@ export interface CreatorFullProfileData {
 
 export async function creatorFullProfile(
   input: CreatorFullProfileInput,
-  options: PresetRunOptions = {}
+  options: PresetRunOptions = {},
 ): Promise<PresetResult<CreatorFullProfileData>> {
   const startTime = Date.now();
   const errors: string[] = [];
-  
+
   const costBatches: BatchInput[] = [];
-  
+
   if (input.instagramUsername) {
     costBatches.push({ actorKey: 'instagram_profile', estimatedItems: 1 });
     if (input.includeRecentPosts) {
       costBatches.push({ actorKey: 'instagram_post', estimatedItems: input.postsLimit || 10 });
     }
   }
-  
+
   if (input.tiktokUsername) {
-    costBatches.push({ actorKey: 'tiktok_scraper', estimatedItems: 30, options: { includeStartFee: true } });
+    costBatches.push({
+      actorKey: 'tiktok_scraper',
+      estimatedItems: 30,
+      options: { includeStartFee: true },
+    });
   }
-  
+
   const totalCost = estimateBatchCost(costBatches);
 
   if (options.dryRun) {
@@ -106,12 +114,12 @@ export async function creatorFullProfile(
   if (input.instagramUsername) {
     const igPromise = (async () => {
       try {
-        const profile = await queueProfileScrape(
-          input.instagramUsername!,
-          { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId }
-        );
+        const profile = await queueProfileScrape(input.instagramUsername!, {
+          triggeredBy: options.triggeredBy,
+          triggeredByUserId: options.triggeredByUserId,
+        });
         let recentPosts: PostScraperResult[] = [];
-        let recentReels: ReelScraperResult[] = [];
+        const recentReels: ReelScraperResult[] = [];
 
         if (profile && input.includeRecentPosts) {
           const postUrls = [`https://instagram.com/${input.instagramUsername}`];
@@ -119,12 +127,14 @@ export async function creatorFullProfile(
             postUrls,
             input.postsLimit || 10,
             { addParentData: true },
-            { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId }
+            { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId },
           );
         }
 
         if (profile && input.includeReels) {
-          console.log('[Apify Presets] Skipping reels scraping - disabled for cost control ($2.60/1k reels)');
+          console.log(
+            '[Apify Presets] Skipping reels scraping - disabled for cost control ($2.60/1k reels)',
+          );
         }
 
         data.instagram = { profile, recentPosts, recentReels };
@@ -142,33 +152,37 @@ export async function creatorFullProfile(
         const profiles = await scrapeTikTokProfiles(
           [input.tiktokUsername!],
           { resultsPerProfile: 20 },
-          { 
-            triggeredBy: options.triggeredBy, 
+          {
+            triggeredBy: options.triggeredBy,
             triggeredByUserId: options.triggeredByUserId,
             saveToDb: options.saveToDb ?? true,
-          }
+          },
         );
-        
-        const profile = profiles.find(p => 
-          p.author?.uniqueId?.toLowerCase() === input.tiktokUsername!.toLowerCase().replace('@', '')
-        ) as TikTokProfileResult | undefined;
-        
-        const authorProfile = profile?.author ? {
-          id: profile.id || '',
-          uniqueId: profile.author.uniqueId || '',
-          nickname: profile.author.nickname,
-          avatarUrl: profile.author.avatarMedium,
-          signature: profile.author.signature,
-          verified: profile.author.verified,
-          secUid: profile.author.secUid,
-          following: profile.authorStats?.followingCount,
-          followers: profile.authorStats?.followerCount,
-          likes: profile.authorStats?.heartCount,
-          videoCount: profile.authorStats?.videoCount,
-        } as unknown as TikTokProfileResult : null;
 
-        data.tiktok = { 
-          profile: authorProfile, 
+        const profile = profiles.find(
+          (p) =>
+            p.author?.uniqueId?.toLowerCase() ===
+            input.tiktokUsername!.toLowerCase().replace('@', ''),
+        ) as TikTokProfileResult | undefined;
+
+        const authorProfile = profile?.author
+          ? ({
+              id: profile.id || '',
+              uniqueId: profile.author.uniqueId || '',
+              nickname: profile.author.nickname,
+              avatarUrl: profile.author.avatarMedium,
+              signature: profile.author.signature,
+              verified: profile.author.verified,
+              secUid: profile.author.secUid,
+              following: profile.authorStats?.followingCount,
+              followers: profile.authorStats?.followerCount,
+              likes: profile.authorStats?.heartCount,
+              videoCount: profile.authorStats?.videoCount,
+            } as unknown as TikTokProfileResult)
+          : null;
+
+        data.tiktok = {
+          profile: authorProfile,
           recentVideos: profiles.slice(0, 20),
         };
       } catch (error: any) {
@@ -215,22 +229,29 @@ export interface CampaignDiscoveryData {
 
 export async function campaignDiscovery(
   input: CampaignDiscoveryInput,
-  options: PresetRunOptions = {}
+  options: PresetRunOptions = {},
 ): Promise<PresetResult<CampaignDiscoveryData>> {
   const startTime = Date.now();
   const errors: string[] = [];
   const platforms = input.platforms || ['instagram', 'tiktok'];
   const resultsPerHashtag = input.resultsPerHashtag || 30;
-  
+
   const costBatches: BatchInput[] = [];
-  
+
   if (platforms.includes('instagram')) {
-    costBatches.push({ actorKey: 'instagram_post', estimatedItems: resultsPerHashtag * input.hashtags.length });
+    costBatches.push({
+      actorKey: 'instagram_post',
+      estimatedItems: resultsPerHashtag * input.hashtags.length,
+    });
   }
   if (platforms.includes('tiktok')) {
-    costBatches.push({ actorKey: 'tiktok_scraper', estimatedItems: resultsPerHashtag * input.hashtags.length, options: { includeStartFee: true } });
+    costBatches.push({
+      actorKey: 'tiktok_scraper',
+      estimatedItems: resultsPerHashtag * input.hashtags.length,
+      options: { includeStartFee: true },
+    });
   }
-  
+
   const totalCost = estimateBatchCost(costBatches);
 
   if (options.dryRun) {
@@ -252,22 +273,25 @@ export async function campaignDiscovery(
   }
 
   const data: CampaignDiscoveryData = { topCreators: [] };
-  const creatorMap = new Map<string, { platform: 'instagram' | 'tiktok'; engagementScore: number; postsFound: number }>();
+  const creatorMap = new Map<
+    string,
+    { platform: 'instagram' | 'tiktok'; engagementScore: number; postsFound: number }
+  >();
 
   const promises: Promise<void>[] = [];
 
   if (platforms.includes('instagram')) {
     const igPromise = (async () => {
       try {
-        const hashtagUrls = input.hashtags.map(h => 
-          `https://instagram.com/explore/tags/${h.replace('#', '')}`
+        const hashtagUrls = input.hashtags.map(
+          (h) => `https://instagram.com/explore/tags/${h.replace('#', '')}`,
         );
-        
+
         const posts = await scrapePosts(
           hashtagUrls,
           resultsPerHashtag * input.hashtags.length,
           { addParentData: true },
-          { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId }
+          { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId },
         );
 
         const hashtagCounts: Record<string, number> = {};
@@ -309,11 +333,11 @@ export async function campaignDiscovery(
         const videos = await scrapeTikTokHashtags(
           input.hashtags,
           { totalResults: resultsPerHashtag * input.hashtags.length },
-          { 
-            triggeredBy: options.triggeredBy, 
+          {
+            triggeredBy: options.triggeredBy,
             triggeredByUserId: options.triggeredByUserId,
             saveToDb: options.saveToDb ?? true,
-          }
+          },
         );
 
         const hashtagCounts: Record<string, number> = {};
@@ -327,7 +351,10 @@ export async function campaignDiscovery(
 
           const username = video.author?.uniqueId;
           if (username) {
-            const engagement = (video.stats?.diggCount || 0) + (video.stats?.commentCount || 0) * 2 + (video.stats?.shareCount || 0) * 3;
+            const engagement =
+              (video.stats?.diggCount || 0) +
+              (video.stats?.commentCount || 0) * 2 +
+              (video.stats?.shareCount || 0) * 3;
             const existing = creatorMap.get(`tt:${username}`);
             if (existing) {
               existing.engagementScore += engagement;
@@ -401,35 +428,41 @@ export interface CompetitorAnalysisData {
 
 export async function competitorAnalysis(
   input: CompetitorAnalysisInput,
-  options: PresetRunOptions = {}
+  options: PresetRunOptions = {},
 ): Promise<PresetResult<CompetitorAnalysisData>> {
   const startTime = Date.now();
   const errors: string[] = [];
-  
+
   const costBatches: BatchInput[] = [];
   const igUsernames = input.instagramUsernames || [];
   const ytChannels = input.youtubeChannels || [];
-  
+
   if (igUsernames.length > 0) {
     costBatches.push({ actorKey: 'instagram_profile', estimatedItems: igUsernames.length });
     if (input.includeRecentContent) {
-      costBatches.push({ actorKey: 'instagram_post', estimatedItems: (input.contentLimit || 5) * igUsernames.length });
+      costBatches.push({
+        actorKey: 'instagram_post',
+        estimatedItems: (input.contentLimit || 5) * igUsernames.length,
+      });
     }
   }
-  
+
   if (ytChannels.length > 0) {
-    costBatches.push({ actorKey: 'youtube_scraper', estimatedItems: (input.contentLimit || 10) * ytChannels.length });
+    costBatches.push({
+      actorKey: 'youtube_scraper',
+      estimatedItems: (input.contentLimit || 10) * ytChannels.length,
+    });
   }
-  
+
   const totalCost = estimateBatchCost(costBatches);
 
   if (options.dryRun) {
     return {
       success: true,
-      data: { 
-        instagram: [], 
-        youtube: [], 
-        comparison: { instagramFollowerRanking: [], youtubeVideoCountRanking: [] } 
+      data: {
+        instagram: [],
+        youtube: [],
+        comparison: { instagramFollowerRanking: [], youtubeVideoCountRanking: [] },
       },
       costEstimate: totalCost,
       errors: [],
@@ -439,10 +472,10 @@ export async function competitorAnalysis(
   if (!isApifyConfigured()) {
     return {
       success: false,
-      data: { 
-        instagram: [], 
-        youtube: [], 
-        comparison: { instagramFollowerRanking: [], youtubeVideoCountRanking: [] } 
+      data: {
+        instagram: [],
+        youtube: [],
+        comparison: { instagramFollowerRanking: [], youtubeVideoCountRanking: [] },
       },
       costEstimate: totalCost,
       errors: ['Apify não configurado. Defina APIFY_API_KEY.'],
@@ -463,21 +496,21 @@ export async function competitorAnalysis(
   if (igUsernames.length > 0) {
     const igPromise = (async () => {
       try {
-        const profiles = await scrapeProfiles(
-          igUsernames,
-          { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId }
-        );
+        const profiles = await scrapeProfiles(igUsernames, {
+          triggeredBy: options.triggeredBy,
+          triggeredByUserId: options.triggeredByUserId,
+        });
 
         for (const profile of profiles) {
           let recentPosts: PostScraperResult[] = [];
-          
+
           if (input.includeRecentContent && profile.username) {
             const postUrls = [`https://instagram.com/${profile.username}`];
             recentPosts = await scrapePosts(
               postUrls,
               input.contentLimit || 5,
               { addParentData: true },
-              { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId }
+              { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId },
             );
           }
 
@@ -485,8 +518,8 @@ export async function competitorAnalysis(
         }
 
         data.comparison.instagramFollowerRanking = profiles
-          .filter(p => p.followersCount !== undefined)
-          .map(p => ({ username: p.username, followers: p.followersCount! }))
+          .filter((p) => p.followersCount !== undefined)
+          .map((p) => ({ username: p.username, followers: p.followersCount! }))
           .sort((a, b) => b.followers - a.followers);
       } catch (error: any) {
         errors.push(`Instagram: ${error.message}`);
@@ -499,28 +532,26 @@ export async function competitorAnalysis(
     const ytPromise = (async () => {
       try {
         for (const channelUrl of ytChannels) {
-          const videos = await scrapeYouTubeChannel(
-            [channelUrl],
-            input.contentLimit || 10,
-            { 
-              triggeredBy: options.triggeredBy, 
-              triggeredByUserId: options.triggeredByUserId,
-              scrapeVideos: true,
-              scrapeShorts: false,
-              scrapeStreams: false,
-            }
-          );
+          const videos = await scrapeYouTubeChannel([channelUrl], input.contentLimit || 10, {
+            triggeredBy: options.triggeredBy,
+            triggeredByUserId: options.triggeredByUserId,
+            scrapeVideos: true,
+            scrapeShorts: false,
+            scrapeStreams: false,
+          });
 
-          const channelId = channelUrl.includes('@') 
+          const channelId = channelUrl.includes('@')
             ? channelUrl.split('@')[1]?.split('/')[0] || channelUrl
             : channelUrl;
 
           const firstVideo = videos[0];
-          const stats = firstVideo?.channelName ? {
-            subscribers: undefined,
-            totalViews: undefined,
-            videoCount: videos.length,
-          } : undefined;
+          const stats = firstVideo?.channelName
+            ? {
+                subscribers: undefined,
+                totalViews: undefined,
+                videoCount: videos.length,
+              }
+            : undefined;
 
           data.youtube.push({
             channelId,
@@ -539,11 +570,11 @@ export async function competitorAnalysis(
 
   // Populate YouTube ranking based on video count (subscribers not available from video scraper)
   data.comparison.youtubeVideoCountRanking = data.youtube
-    .filter(yt => yt.stats?.videoCount !== undefined)
-    .map(yt => ({ 
-      channelId: yt.channelId, 
+    .filter((yt) => yt.stats?.videoCount !== undefined)
+    .map((yt) => ({
+      channelId: yt.channelId,
       videoCount: yt.stats?.videoCount || 0,
-      note: 'Ranking por quantidade de vídeos (subscribers indisponível via video scraper)'
+      note: 'Ranking por quantidade de vídeos (subscribers indisponível via video scraper)',
     }))
     .sort((a, b) => b.videoCount - a.videoCount);
 
@@ -584,32 +615,36 @@ export interface BrandMentionsData {
 
 export async function brandMentions(
   input: BrandMentionsInput,
-  options: PresetRunOptions = {}
+  options: PresetRunOptions = {},
 ): Promise<PresetResult<BrandMentionsData>> {
   const startTime = Date.now();
   const errors: string[] = [];
   const platforms = input.platforms || ['instagram', 'tiktok'];
   const resultsLimit = input.resultsLimit || 50;
-  
+
   const hashtagsToSearch = input.hashtags || [input.brandName.toLowerCase().replace(/\s+/g, '')];
-  
+
   const costBatches: BatchInput[] = [];
-  
+
   if (platforms.includes('instagram')) {
     costBatches.push({ actorKey: 'instagram_post', estimatedItems: resultsLimit });
   }
   if (platforms.includes('tiktok')) {
-    costBatches.push({ actorKey: 'tiktok_scraper', estimatedItems: resultsLimit, options: { includeStartFee: true } });
+    costBatches.push({
+      actorKey: 'tiktok_scraper',
+      estimatedItems: resultsLimit,
+      options: { includeStartFee: true },
+    });
   }
-  
+
   const totalCost = estimateBatchCost(costBatches);
 
   if (options.dryRun) {
     return {
       success: true,
-      data: { 
-        mentions: [], 
-        summary: { totalMentions: 0, byPlatform: {}, topMentioners: [] } 
+      data: {
+        mentions: [],
+        summary: { totalMentions: 0, byPlatform: {}, topMentioners: [] },
       },
       costEstimate: totalCost,
       errors: [],
@@ -619,9 +654,9 @@ export async function brandMentions(
   if (!isApifyConfigured()) {
     return {
       success: false,
-      data: { 
-        mentions: [], 
-        summary: { totalMentions: 0, byPlatform: {}, topMentioners: [] } 
+      data: {
+        mentions: [],
+        summary: { totalMentions: 0, byPlatform: {}, topMentioners: [] },
       },
       costEstimate: totalCost,
       errors: ['Apify não configurado. Defina APIFY_API_KEY.'],
@@ -636,20 +671,20 @@ export async function brandMentions(
   if (platforms.includes('instagram')) {
     const igPromise = (async () => {
       try {
-        const hashtagUrls = hashtagsToSearch.map(h => 
-          `https://instagram.com/explore/tags/${h.replace('#', '')}`
+        const hashtagUrls = hashtagsToSearch.map(
+          (h) => `https://instagram.com/explore/tags/${h.replace('#', '')}`,
         );
-        
+
         const posts = await scrapePosts(
           hashtagUrls,
           resultsLimit,
           { addParentData: true },
-          { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId }
+          { triggeredBy: options.triggeredBy, triggeredByUserId: options.triggeredByUserId },
         );
 
         for (const post of posts) {
           const engagement = (post.likesCount || 0) + (post.commentsCount || 0) * 2;
-          
+
           allMentions.push({
             platform: 'instagram',
             type: 'post',
@@ -684,17 +719,20 @@ export async function brandMentions(
         const videos = await scrapeTikTokHashtags(
           hashtagsToSearch,
           { totalResults: resultsLimit },
-          { 
-            triggeredBy: options.triggeredBy, 
+          {
+            triggeredBy: options.triggeredBy,
             triggeredByUserId: options.triggeredByUserId,
             saveToDb: options.saveToDb ?? true,
-          }
+          },
         );
 
         for (const video of videos) {
-          const engagement = (video.stats?.diggCount || 0) + (video.stats?.commentCount || 0) * 2 + (video.stats?.shareCount || 0) * 3;
+          const engagement =
+            (video.stats?.diggCount || 0) +
+            (video.stats?.commentCount || 0) * 2 +
+            (video.stats?.shareCount || 0) * 3;
           const username = video.author?.uniqueId || 'unknown';
-          
+
           allMentions.push({
             platform: 'tiktok',
             type: 'video',

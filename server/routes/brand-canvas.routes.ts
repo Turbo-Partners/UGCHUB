@@ -1,48 +1,72 @@
-import type { Express } from "express";
-import { z } from "zod";
-import multer from "multer";
-import { storage } from "../storage";
-import { brandCanvasSchema, type BrandCanvasV2 } from "@shared/schema";
-import { calculateEnrichmentScore } from "../services/company-enrichment";
+import type { Express } from 'express';
+import { z } from 'zod';
+import multer from 'multer';
+import { storage } from '../storage';
+import { brandCanvasSchema, type BrandCanvasV2 } from '@shared/schema';
+import { calculateEnrichmentScore } from '../services/company-enrichment';
 import {
   migrateV1toV2,
   calculateCanvasCompletionScoreV2,
   mergeCanvasData,
   runBrandCanvasPipeline,
-} from "../services/brand-canvas";
-import { db } from "../db";
-import { companies, brandSettings, instagramAccounts, instagramPosts } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
-import { objectStorageClient } from "../lib/object-storage";
+} from '../services/brand-canvas';
+import { db } from '../db';
+import { companies, brandSettings, instagramAccounts, instagramPosts } from '@shared/schema';
+import { eq, desc } from 'drizzle-orm';
+import { objectStorageClient } from '../lib/object-storage';
 
 function isAdminByEmail(user: any): boolean {
   const email = user?.email || '';
-  return user?.role === 'admin' || email.endsWith('@turbopartners.com.br') || email === 'rodrigoqs9@gmail.com';
+  return (
+    user?.role === 'admin' ||
+    email.endsWith('@turbopartners.com.br') ||
+    email === 'rodrigoqs9@gmail.com'
+  );
 }
 
 /**
  * Verify that the user has access to edit a company's brand canvas.
  * Returns the company or null if access denied.
  */
-async function verifyCompanyAccess(req: any, res: any, companyId: number, requireAdmin = false): Promise<any | null> {
-  if (!req.isAuthenticated()) { res.sendStatus(401); return null; }
+async function verifyCompanyAccess(
+  req: any,
+  res: any,
+  companyId: number,
+  requireAdmin = false,
+): Promise<any | null> {
+  if (!req.isAuthenticated()) {
+    res.sendStatus(401);
+    return null;
+  }
 
-  if (isNaN(companyId)) { res.status(400).json({ error: "ID inválido" }); return null; }
+  if (isNaN(companyId)) {
+    res.status(400).json({ error: 'ID inválido' });
+    return null;
+  }
 
   const company = await storage.getCompany(companyId);
-  if (!company) { res.status(404).json({ error: "Empresa não encontrada" }); return null; }
+  if (!company) {
+    res.status(404).json({ error: 'Empresa não encontrada' });
+    return null;
+  }
 
   if (req.user!.role === 'company') {
     if (requireAdmin) {
       const isCompAdmin = await storage.isCompanyAdmin(companyId, req.user!.id);
-      if (!isCompAdmin) { res.status(403).json({ error: "Apenas administradores podem editar" }); return null; }
+      if (!isCompAdmin) {
+        res.status(403).json({ error: 'Apenas administradores podem editar' });
+        return null;
+      }
     } else {
       const isCompAdmin = await storage.isCompanyAdmin(companyId, req.user!.id);
       const isMember = await storage.getCompanyMember(companyId, req.user!.id);
-      if (!isCompAdmin && !isMember) { res.status(403).json({ error: "Sem acesso" }); return null; }
+      if (!isCompAdmin && !isMember) {
+        res.status(403).json({ error: 'Sem acesso' });
+        return null;
+      }
     }
   } else if (!isAdminByEmail(req.user!)) {
-    res.status(403).json({ error: "Sem acesso" });
+    res.status(403).json({ error: 'Sem acesso' });
     return null;
   }
 
@@ -50,9 +74,8 @@ async function verifyCompanyAccess(req: any, res: any, companyId: number, requir
 }
 
 export function registerBrandCanvasRoutes(app: Express): void {
-
   // GET /api/companies/:id/brand-canvas
-  app.get("/api/companies/:id/brand-canvas", async (req, res) => {
+  app.get('/api/companies/:id/brand-canvas', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId);
@@ -148,13 +171,13 @@ export function registerBrandCanvasRoutes(app: Express): void {
         },
       });
     } catch (error) {
-      console.error("[BrandCanvas] GET error:", error);
-      res.status(500).json({ error: "Erro ao carregar Brand Canvas" });
+      console.error('[BrandCanvas] GET error:', error);
+      res.status(500).json({ error: 'Erro ao carregar Brand Canvas' });
     }
   });
 
   // PUT /api/companies/:id/brand-canvas
-  app.put("/api/companies/:id/brand-canvas", async (req, res) => {
+  app.put('/api/companies/:id/brand-canvas', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId, true);
@@ -163,7 +186,7 @@ export function registerBrandCanvasRoutes(app: Express): void {
       // Validate payload
       const parsed = brandCanvasSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ error: "Dados inválidos", details: parsed.error.errors });
+        return res.status(400).json({ error: 'Dados inválidos', details: parsed.error.errors });
       }
 
       const canvas = parsed.data as BrandCanvasV2;
@@ -188,13 +211,34 @@ export function registerBrandCanvasRoutes(app: Express): void {
         const avoidTopics = canvas.contentStrategy?.avoidTopics || canvas.avoidTopics;
         const refCreators = canvas.references?.referenceCreators || canvas.referenceCreators;
 
-        if (canvas.whatWeDo !== undefined) { structuredBriefing.whatWeDo = canvas.whatWeDo; changed = true; }
-        if (canvas.targetAudience !== undefined) { structuredBriefing.targetAudience = canvas.targetAudience; changed = true; }
-        if (voiceTone !== undefined) { structuredBriefing.brandVoice = voiceTone; changed = true; }
-        if (canvas.differentials !== undefined) { structuredBriefing.differentials = canvas.differentials; changed = true; }
-        if (contentTypes !== undefined) { structuredBriefing.idealContentTypes = contentTypes; changed = true; }
-        if (avoidTopics !== undefined) { structuredBriefing.avoidTopics = avoidTopics; changed = true; }
-        if (refCreators !== undefined) { structuredBriefing.referenceCreators = refCreators; changed = true; }
+        if (canvas.whatWeDo !== undefined) {
+          structuredBriefing.whatWeDo = canvas.whatWeDo;
+          changed = true;
+        }
+        if (canvas.targetAudience !== undefined) {
+          structuredBriefing.targetAudience = canvas.targetAudience;
+          changed = true;
+        }
+        if (voiceTone !== undefined) {
+          structuredBriefing.brandVoice = voiceTone;
+          changed = true;
+        }
+        if (canvas.differentials !== undefined) {
+          structuredBriefing.differentials = canvas.differentials;
+          changed = true;
+        }
+        if (contentTypes !== undefined) {
+          structuredBriefing.idealContentTypes = contentTypes;
+          changed = true;
+        }
+        if (avoidTopics !== undefined) {
+          structuredBriefing.avoidTopics = avoidTopics;
+          changed = true;
+        }
+        if (refCreators !== undefined) {
+          structuredBriefing.referenceCreators = refCreators;
+          changed = true;
+        }
 
         if (changed) {
           await storage.updateCompany(companyId, { structuredBriefing });
@@ -217,15 +261,15 @@ export function registerBrandCanvasRoutes(app: Express): void {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Dados inválidos", details: error.errors });
+        return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
       }
-      console.error("[BrandCanvas] PUT error:", error);
-      res.status(500).json({ error: "Erro ao salvar Brand Canvas" });
+      console.error('[BrandCanvas] PUT error:', error);
+      res.status(500).json({ error: 'Erro ao salvar Brand Canvas' });
     }
   });
 
   // POST /api/companies/:id/brand-canvas/generate — Start AI pipeline
-  app.post("/api/companies/:id/brand-canvas/generate", async (req, res) => {
+  app.post('/api/companies/:id/brand-canvas/generate', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId, true);
@@ -234,69 +278,83 @@ export function registerBrandCanvasRoutes(app: Express): void {
       // Check if already processing
       const canvas = company.brandCanvas as BrandCanvasV2 | null;
       if (canvas?.processing?.status === 'processing') {
-        return res.status(409).json({ error: "Pipeline já em execução" });
+        return res.status(409).json({ error: 'Pipeline já em execução' });
       }
 
       // Parse optional generation context
-      const contextSchema = z.object({
-        selectedPostIds: z.array(z.string()).max(10).optional(),
-        uploadedReferences: z.array(z.object({
-          url: z.string(),
-          type: z.enum(['image', 'video']),
-          filename: z.string(),
-        })).max(5).optional(),
-        questionnaire: z.object({
-          tonePreference: z.string().max(50).optional(),
-          targetAudience: z.string().max(300).optional(),
-          inspirationBrands: z.string().max(300).optional(),
-          communicationAvoid: z.string().max(300).optional(),
-          brandEssence: z.string().max(200).optional(),
-        }).optional(),
-      }).optional();
+      const contextSchema = z
+        .object({
+          selectedPostIds: z.array(z.string()).max(10).optional(),
+          uploadedReferences: z
+            .array(
+              z.object({
+                url: z.string(),
+                type: z.enum(['image', 'video']),
+                filename: z.string(),
+              }),
+            )
+            .max(5)
+            .optional(),
+          questionnaire: z
+            .object({
+              tonePreference: z.string().max(50).optional(),
+              targetAudience: z.string().max(300).optional(),
+              inspirationBrands: z.string().max(300).optional(),
+              communicationAvoid: z.string().max(300).optional(),
+              brandEssence: z.string().max(200).optional(),
+            })
+            .optional(),
+        })
+        .optional();
 
       const generationContext = contextSchema.parse(req.body || {});
 
       // Start pipeline async
       const userId = req.user!.id;
       setImmediate(() => {
-        runBrandCanvasPipeline({ companyId, userId, referenceContext: generationContext }).catch(error => {
-          console.error("[BrandCanvas] Pipeline failed:", error);
-          // Mark as failed
-          db.update(companies).set({
-            brandCanvas: {
-              ...(canvas || {}),
-              processing: {
-                version: 2,
-                status: 'failed' as const,
-                lastProcessedAt: new Date().toISOString(),
-              },
-            },
-          }).where(eq(companies.id, companyId)).catch(() => {});
+        runBrandCanvasPipeline({ companyId, userId, referenceContext: generationContext }).catch(
+          (error) => {
+            console.error('[BrandCanvas] Pipeline failed:', error);
+            // Mark as failed
+            db.update(companies)
+              .set({
+                brandCanvas: {
+                  ...(canvas || {}),
+                  processing: {
+                    version: 2,
+                    status: 'failed' as const,
+                    lastProcessedAt: new Date().toISOString(),
+                  },
+                },
+              })
+              .where(eq(companies.id, companyId))
+              .catch(() => {});
 
-          // Notify failure via WebSocket
-          try {
-            const { notificationWS } = require("../websocket");
-            notificationWS?.sendEventToUser(userId, {
-              type: 'brand_canvas:failed',
-              companyId,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
-          } catch {}
-        });
+            // Notify failure via WebSocket
+            try {
+              const { notificationWS } = require('../websocket');
+              notificationWS?.sendEventToUser(userId, {
+                type: 'brand_canvas:failed',
+                companyId,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            } catch {}
+          },
+        );
       });
 
       res.status(202).json({
-        message: "Pipeline iniciado",
-        status: "processing",
+        message: 'Pipeline iniciado',
+        status: 'processing',
       });
     } catch (error) {
-      console.error("[BrandCanvas] Generate error:", error);
-      res.status(500).json({ error: "Erro ao iniciar geração" });
+      console.error('[BrandCanvas] Generate error:', error);
+      res.status(500).json({ error: 'Erro ao iniciar geração' });
     }
   });
 
   // GET /api/companies/:id/brand-canvas/status
-  app.get("/api/companies/:id/brand-canvas/status", async (req, res) => {
+  app.get('/api/companies/:id/brand-canvas/status', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId);
@@ -305,7 +363,7 @@ export function registerBrandCanvasRoutes(app: Express): void {
       const canvas = company.brandCanvas as BrandCanvasV2 | null;
       const processing = canvas?.processing || { version: 2, status: 'idle' };
 
-      const completedSteps = processing.steps?.filter(s => s.status === 'completed').length || 0;
+      const completedSteps = processing.steps?.filter((s) => s.status === 'completed').length || 0;
       const totalSteps = processing.steps?.length || 0;
       const progress = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
@@ -318,13 +376,13 @@ export function registerBrandCanvasRoutes(app: Express): void {
         lastProcessedAt: processing.lastProcessedAt,
       });
     } catch (error) {
-      console.error("[BrandCanvas] Status error:", error);
-      res.status(500).json({ error: "Erro ao buscar status" });
+      console.error('[BrandCanvas] Status error:', error);
+      res.status(500).json({ error: 'Erro ao buscar status' });
     }
   });
 
   // POST /api/companies/:id/brand-canvas/generate-section — Regenerate single section
-  app.post("/api/companies/:id/brand-canvas/generate-section", async (req, res) => {
+  app.post('/api/companies/:id/brand-canvas/generate-section', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId, true);
@@ -336,7 +394,10 @@ export function registerBrandCanvasRoutes(app: Express): void {
       const { section } = sectionSchema.parse(req.body);
 
       // Map section to pipeline steps
-      const stepMap: Record<string, Array<'cnpj' | 'website' | 'visual' | 'social' | 'voice' | 'synthesis'>> = {
+      const stepMap: Record<
+        string,
+        Array<'cnpj' | 'website' | 'visual' | 'social' | 'voice' | 'synthesis'>
+      > = {
         visual: ['visual'],
         voice: ['voice'],
         content: ['synthesis'],
@@ -351,26 +412,26 @@ export function registerBrandCanvasRoutes(app: Express): void {
           userId,
           force: true,
           sectionsOnly: stepMap[section],
-        }).catch(error => {
+        }).catch((error) => {
           console.error(`[BrandCanvas] Section ${section} regeneration failed:`, error);
         });
       });
 
       res.status(202).json({
         message: `Regenerando seção: ${section}`,
-        status: "processing",
+        status: 'processing',
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Seção inválida", details: error.errors });
+        return res.status(400).json({ error: 'Seção inválida', details: error.errors });
       }
-      console.error("[BrandCanvas] Generate-section error:", error);
-      res.status(500).json({ error: "Erro ao regenerar seção" });
+      console.error('[BrandCanvas] Generate-section error:', error);
+      res.status(500).json({ error: 'Erro ao regenerar seção' });
     }
   });
 
   // POST /api/companies/:id/brand-canvas/apply — Apply canvas to brandSettings & company profile
-  app.post("/api/companies/:id/brand-canvas/apply", async (req, res) => {
+  app.post('/api/companies/:id/brand-canvas/apply', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId, true);
@@ -378,7 +439,7 @@ export function registerBrandCanvasRoutes(app: Express): void {
 
       const canvas = migrateV1toV2(company.brandCanvas) as BrandCanvasV2;
       if (!canvas) {
-        return res.status(400).json({ error: "Brand Canvas vazio" });
+        return res.status(400).json({ error: 'Brand Canvas vazio' });
       }
 
       const updates: string[] = [];
@@ -391,13 +452,19 @@ export function registerBrandCanvasRoutes(app: Express): void {
       }
       if (canvas.voice?.toneType || canvas.brandVoice) {
         const voiceTone = canvas.voice?.toneType || canvas.brandVoice;
-        const structuredBriefing = { ...(company.structuredBriefing as any || {}), brandVoice: voiceTone };
+        const structuredBriefing = {
+          ...((company.structuredBriefing as any) || {}),
+          brandVoice: voiceTone,
+        };
         companyUpdate.structuredBriefing = structuredBriefing;
         updates.push('structuredBriefing.brandVoice');
       }
       if (canvas.contentStrategy?.idealContentTypes?.length || canvas.idealContentTypes?.length) {
         const types = canvas.contentStrategy?.idealContentTypes || canvas.idealContentTypes;
-        const structuredBriefing = { ...(companyUpdate.structuredBriefing || company.structuredBriefing as any || {}), idealContentTypes: types };
+        const structuredBriefing = {
+          ...(companyUpdate.structuredBriefing || (company.structuredBriefing as any) || {}),
+          idealContentTypes: types,
+        };
         companyUpdate.structuredBriefing = structuredBriefing;
         updates.push('structuredBriefing.idealContentTypes');
       }
@@ -407,7 +474,8 @@ export function registerBrandCanvasRoutes(app: Express): void {
       }
 
       // 2. Update brandSettings if exists
-      const [existingSettings] = await db.select()
+      const [existingSettings] = await db
+        .select()
         .from(brandSettings)
         .where(eq(brandSettings.companyId, companyId))
         .limit(1);
@@ -446,7 +514,10 @@ export function registerBrandCanvasRoutes(app: Express): void {
 
         if (Object.keys(settingsUpdate).length > 0) {
           settingsUpdate.updatedAt = new Date();
-          await db.update(brandSettings).set(settingsUpdate).where(eq(brandSettings.id, existingSettings.id));
+          await db
+            .update(brandSettings)
+            .set(settingsUpdate)
+            .where(eq(brandSettings.id, existingSettings.id));
         }
       }
 
@@ -456,13 +527,13 @@ export function registerBrandCanvasRoutes(app: Express): void {
         message: `${updates.length} campos aplicados com sucesso`,
       });
     } catch (error) {
-      console.error("[BrandCanvas] Apply error:", error);
-      res.status(500).json({ error: "Erro ao aplicar Brand Canvas" });
+      console.error('[BrandCanvas] Apply error:', error);
+      res.status(500).json({ error: 'Erro ao aplicar Brand Canvas' });
     }
   });
 
   // POST /api/companies/:id/brand-canvas/accept-suggestions — Accept selected AI suggestions
-  app.post("/api/companies/:id/brand-canvas/accept-suggestions", async (req, res) => {
+  app.post('/api/companies/:id/brand-canvas/accept-suggestions', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId, true);
@@ -473,7 +544,7 @@ export function registerBrandCanvasRoutes(app: Express): void {
       });
       const { fields } = acceptSchema.parse(req.body);
 
-      let canvas = migrateV1toV2(company.brandCanvas) as BrandCanvasV2 || {};
+      const canvas = (migrateV1toV2(company.brandCanvas) as BrandCanvasV2) || {};
 
       // Apply each accepted field
       for (const [path, value] of Object.entries(fields)) {
@@ -498,22 +569,23 @@ export function registerBrandCanvasRoutes(app: Express): void {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Dados inválidos", details: error.errors });
+        return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
       }
-      console.error("[BrandCanvas] Accept-suggestions error:", error);
-      res.status(500).json({ error: "Erro ao aceitar sugestões" });
+      console.error('[BrandCanvas] Accept-suggestions error:', error);
+      res.status(500).json({ error: 'Erro ao aceitar sugestões' });
     }
   });
 
   // GET /api/companies/:id/brand-canvas/social-posts
-  app.get("/api/companies/:id/brand-canvas/social-posts", async (req, res) => {
+  app.get('/api/companies/:id/brand-canvas/social-posts', async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       const company = await verifyCompanyAccess(req, res, companyId);
       if (!company) return;
 
       // Find Instagram accounts for this company
-      const accounts = await db.select({ id: instagramAccounts.id })
+      const accounts = await db
+        .select({ id: instagramAccounts.id })
         .from(instagramAccounts)
         .where(eq(instagramAccounts.companyId, companyId));
 
@@ -522,17 +594,18 @@ export function registerBrandCanvasRoutes(app: Express): void {
       }
 
       // Get posts from all company accounts
-      const posts = await db.select({
-        id: instagramPosts.id,
-        instagramMediaId: instagramPosts.instagramMediaId,
-        mediaType: instagramPosts.mediaType,
-        mediaUrl: instagramPosts.mediaUrl,
-        thumbnailUrl: instagramPosts.thumbnailUrl,
-        caption: instagramPosts.caption,
-        likeCount: instagramPosts.likeCount,
-        commentsCount: instagramPosts.commentsCount,
-        timestamp: instagramPosts.timestamp,
-      })
+      const posts = await db
+        .select({
+          id: instagramPosts.id,
+          instagramMediaId: instagramPosts.instagramMediaId,
+          mediaType: instagramPosts.mediaType,
+          mediaUrl: instagramPosts.mediaUrl,
+          thumbnailUrl: instagramPosts.thumbnailUrl,
+          caption: instagramPosts.caption,
+          likeCount: instagramPosts.likeCount,
+          commentsCount: instagramPosts.commentsCount,
+          timestamp: instagramPosts.timestamp,
+        })
         .from(instagramPosts)
         .where(eq(instagramPosts.instagramAccountId, accounts[0].id))
         .orderBy(desc(instagramPosts.timestamp))
@@ -540,8 +613,8 @@ export function registerBrandCanvasRoutes(app: Express): void {
 
       res.json(posts);
     } catch (error) {
-      console.error("[BrandCanvas] Social posts error:", error);
-      res.status(500).json({ error: "Erro ao buscar posts" });
+      console.error('[BrandCanvas] Social posts error:', error);
+      res.status(500).json({ error: 'Erro ao buscar posts' });
     }
   });
 
@@ -559,45 +632,51 @@ export function registerBrandCanvasRoutes(app: Express): void {
     },
   });
 
-  app.post("/api/companies/:id/brand-canvas/upload-reference", referenceUpload.single('file'), async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.id);
-      const company = await verifyCompanyAccess(req, res, companyId, true);
-      if (!company) return;
+  app.post(
+    '/api/companies/:id/brand-canvas/upload-reference',
+    referenceUpload.single('file'),
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.id);
+        const company = await verifyCompanyAccess(req, res, companyId, true);
+        if (!company) return;
 
-      const file = req.file;
-      if (!file) {
-        return res.status(400).json({ error: "Arquivo não enviado" });
+        const file = req.file;
+        if (!file) {
+          return res.status(400).json({ error: 'Arquivo não enviado' });
+        }
+
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        if (!bucketId) {
+          return res.status(500).json({ error: 'Storage não configurado' });
+        }
+
+        const ext = file.originalname.split('.').pop() || 'jpg';
+        const timestamp = Date.now();
+        const fileName = `brand-canvas/references/${companyId}/${timestamp}.${ext}`;
+
+        const bucket = objectStorageClient.bucket(bucketId);
+        const gcsFile = bucket.file(`public/${fileName}`);
+        await gcsFile.save(file.buffer, {
+          contentType: file.mimetype,
+          metadata: { cacheControl: 'public, max-age=31536000' },
+        });
+
+        const fileType = file.mimetype.startsWith('image/')
+          ? ('image' as const)
+          : ('video' as const);
+
+        res.json({
+          url: `/objects/uploads/public/${fileName}`,
+          type: fileType,
+          filename: file.originalname,
+        });
+      } catch (error) {
+        console.error('[BrandCanvas] Upload reference error:', error);
+        res.status(500).json({ error: 'Erro ao enviar arquivo' });
       }
+    },
+  );
 
-      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-      if (!bucketId) {
-        return res.status(500).json({ error: "Storage não configurado" });
-      }
-
-      const ext = file.originalname.split('.').pop() || 'jpg';
-      const timestamp = Date.now();
-      const fileName = `brand-canvas/references/${companyId}/${timestamp}.${ext}`;
-
-      const bucket = objectStorageClient.bucket(bucketId);
-      const gcsFile = bucket.file(`public/${fileName}`);
-      await gcsFile.save(file.buffer, {
-        contentType: file.mimetype,
-        metadata: { cacheControl: 'public, max-age=31536000' },
-      });
-
-      const fileType = file.mimetype.startsWith('image/') ? 'image' as const : 'video' as const;
-
-      res.json({
-        url: `/objects/uploads/public/${fileName}`,
-        type: fileType,
-        filename: file.originalname,
-      });
-    } catch (error) {
-      console.error("[BrandCanvas] Upload reference error:", error);
-      res.status(500).json({ error: "Erro ao enviar arquivo" });
-    }
-  });
-
-  console.log("[Routes] Brand Canvas V2 routes registered (9 endpoints)");
+  console.log('[Routes] Brand Canvas V2 routes registered (9 endpoints)');
 }

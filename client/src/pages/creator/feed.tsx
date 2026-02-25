@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
-import { useMarketplace } from "@/lib/provider";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useSearch } from "wouter";
-import { Button } from "@/components/ui/button";
+import { useState, useMemo, useEffect } from 'react';
+import { useMarketplace } from '@/lib/provider';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation, useSearch } from 'wouter';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -10,16 +10,16 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -28,15 +28,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { motion } from "framer-motion";
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 import {
   Search,
   Filter,
@@ -68,14 +68,14 @@ import {
   Home,
   Dog,
   Baby,
-} from "lucide-react";
-import { Link } from "wouter";
-import { format, differenceInDays, addDays } from "date-fns";
-import { DataTable, Column } from "@/components/data-table";
-import { ViewToggle } from "@/components/view-toggle";
-import { useViewPreference } from "@/hooks/use-view-preference";
-import { getAvatarUrl } from "@/lib/utils";
-import type { Campaign, Company } from "@shared/schema";
+} from 'lucide-react';
+import { Link } from 'wouter';
+import { format, differenceInDays, addDays } from 'date-fns';
+import { DataTable, Column } from '@/components/data-table';
+import { ViewToggle } from '@/components/view-toggle';
+import { useViewPreference } from '@/hooks/use-view-preference';
+import { getAvatarUrl } from '@/lib/utils';
+import type { Campaign, Company } from '@shared/schema';
 
 interface FavoriteCompanyWithDetails {
   id: number;
@@ -85,7 +85,13 @@ interface FavoriteCompanyWithDetails {
   company: Company;
 }
 
-function CompanyNameCell({ companyId, companiesMap }: { companyId: number; companiesMap: Map<number, { name: string; tradeName: string | null }> }) {
+function CompanyNameCell({
+  companyId,
+  companiesMap,
+}: {
+  companyId: number;
+  companiesMap: Map<number, { name: string; tradeName: string | null }>;
+}) {
   const company = companiesMap.get(companyId);
 
   if (!company) return <span className="text-muted-foreground">Carregando...</span>;
@@ -140,7 +146,9 @@ function CompanyStatsCard({ companyId }: { companyId: number }) {
       </div>
       <div className="text-center">
         <div className="flex items-center justify-center gap-1 text-sm font-semibold">
-          <Star className={`h-3 w-3 ${stats.avgRating > 0 ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}`} />
+          <Star
+            className={`h-3 w-3 ${stats.avgRating > 0 ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}`}
+          />
           {stats.avgRating > 0 ? stats.avgRating.toFixed(1) : 'N/A'}
         </div>
         <p className="text-[10px] text-muted-foreground">{stats.totalReviews} aval.</p>
@@ -150,50 +158,50 @@ function CompanyStatsCard({ companyId }: { companyId: number }) {
 }
 
 const AVAILABLE_NICHES = [
-  "Moda",
-  "Beleza", 
-  "Fitness",
-  "Lifestyle",
-  "Gastronomia",
-  "Tecnologia",
-  "Games",
-  "Educação",
-  "Viagem",
-  "Família",
-  "Pets",
-  "Decoração",
-  "Finanças",
-  "Saúde",
-  "Música",
-  "Arte",
-  "Esportes",
-  "Automóveis",
-  "Humor",
-  "Outros"
+  'Moda',
+  'Beleza',
+  'Fitness',
+  'Lifestyle',
+  'Gastronomia',
+  'Tecnologia',
+  'Games',
+  'Educação',
+  'Viagem',
+  'Família',
+  'Pets',
+  'Decoração',
+  'Finanças',
+  'Saúde',
+  'Música',
+  'Arte',
+  'Esportes',
+  'Automóveis',
+  'Humor',
+  'Outros',
 ];
 
 const BUDGET_RANGES = [
-  { value: "all", label: "Qualquer orçamento" },
-  { value: "0-500", label: "Até R$ 500", min: 0, max: 500 },
-  { value: "500-1000", label: "R$ 500 - R$ 1.000", min: 500, max: 1000 },
-  { value: "1000-3000", label: "R$ 1.000 - R$ 3.000", min: 1000, max: 3000 },
-  { value: "3000-5000", label: "R$ 3.000 - R$ 5.000", min: 3000, max: 5000 },
-  { value: "5000+", label: "Acima de R$ 5.000", min: 5000, max: Infinity },
+  { value: 'all', label: 'Qualquer orçamento' },
+  { value: '0-500', label: 'Até R$ 500', min: 0, max: 500 },
+  { value: '500-1000', label: 'R$ 500 - R$ 1.000', min: 500, max: 1000 },
+  { value: '1000-3000', label: 'R$ 1.000 - R$ 3.000', min: 1000, max: 3000 },
+  { value: '3000-5000', label: 'R$ 3.000 - R$ 5.000', min: 3000, max: 5000 },
+  { value: '5000+', label: 'Acima de R$ 5.000', min: 5000, max: Infinity },
 ];
 
 const SORT_OPTIONS = [
-  { value: "relevance", label: "Relevância", icon: Sparkles },
-  { value: "recent", label: "Mais recentes", icon: Clock },
-  { value: "budget_high", label: "Maior orçamento", icon: DollarSign },
-  { value: "budget_low", label: "Menor orçamento", icon: DollarSign },
-  { value: "deadline", label: "Prazo mais próximo", icon: Calendar },
+  { value: 'relevance', label: 'Relevância', icon: Sparkles },
+  { value: 'recent', label: 'Mais recentes', icon: Clock },
+  { value: 'budget_high', label: 'Maior orçamento', icon: DollarSign },
+  { value: 'budget_low', label: 'Menor orçamento', icon: DollarSign },
+  { value: 'deadline', label: 'Prazo mais próximo', icon: Calendar },
 ];
 
 const DEADLINE_OPTIONS = [
-  { value: "all", label: "Qualquer prazo" },
-  { value: "7", label: "Próximos 7 dias" },
-  { value: "14", label: "Próximas 2 semanas" },
-  { value: "30", label: "Próximo mês" },
+  { value: 'all', label: 'Qualquer prazo' },
+  { value: '7', label: 'Próximos 7 dias' },
+  { value: '14', label: 'Próximas 2 semanas' },
+  { value: '30', label: 'Próximo mês' },
 ];
 
 interface TrendingCompany {
@@ -227,22 +235,41 @@ interface CategoryCount {
   count: number;
 }
 
-const categoryConfig: Record<string, { label: string; icon: React.ComponentType<any>; color: string }> = {
+const categoryConfig: Record<
+  string,
+  { label: string; icon: React.ComponentType<any>; color: string }
+> = {
   saude: { label: 'Saúde', icon: Heart, color: 'text-red-500 bg-red-50 border-red-200' },
   beleza: { label: 'Beleza', icon: Sparkles, color: 'text-pink-500 bg-pink-50 border-pink-200' },
   moda: { label: 'Moda', icon: Building2, color: 'text-purple-500 bg-purple-50 border-purple-200' },
-  tecnologia: { label: 'Tecnologia', icon: Package, color: 'text-blue-500 bg-blue-50 border-blue-200' },
-  alimentos: { label: 'Alimentos', icon: Utensils, color: 'text-orange-500 bg-orange-50 border-orange-200' },
+  tecnologia: {
+    label: 'Tecnologia',
+    icon: Package,
+    color: 'text-blue-500 bg-blue-50 border-blue-200',
+  },
+  alimentos: {
+    label: 'Alimentos',
+    icon: Utensils,
+    color: 'text-orange-500 bg-orange-50 border-orange-200',
+  },
   bebidas: { label: 'Bebidas', icon: Coffee, color: 'text-amber-500 bg-amber-50 border-amber-200' },
-  fitness: { label: 'Fitness', icon: Dumbbell, color: 'text-green-500 bg-green-50 border-green-200' },
+  fitness: {
+    label: 'Fitness',
+    icon: Dumbbell,
+    color: 'text-green-500 bg-green-50 border-green-200',
+  },
   casa: { label: 'Casa', icon: Home, color: 'text-teal-500 bg-teal-50 border-teal-200' },
   pets: { label: 'Pets', icon: Dog, color: 'text-yellow-500 bg-yellow-50 border-yellow-200' },
   infantil: { label: 'Infantil', icon: Baby, color: 'text-cyan-500 bg-cyan-50 border-cyan-200' },
-  servicos: { label: 'Serviços', icon: Briefcase, color: 'text-indigo-500 bg-indigo-50 border-indigo-200' },
+  servicos: {
+    label: 'Serviços',
+    icon: Briefcase,
+    color: 'text-indigo-500 bg-indigo-50 border-indigo-200',
+  },
   outros: { label: 'Outros', icon: Building2, color: 'text-gray-500 bg-gray-50 border-gray-200' },
 };
 
-type ExploreTab = "campaigns" | "brands" | "favorites";
+type ExploreTab = 'campaigns' | 'brands' | 'favorites';
 
 export default function CreatorFeed() {
   const {
@@ -256,67 +283,67 @@ export default function CreatorFeed() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const searchString = useSearch();
-  
+
   const getTabFromUrl = (): ExploreTab => {
     const params = new URLSearchParams(searchString);
-    const tab = params.get("tab");
-    if (tab === "brands" || tab === "favorites" || tab === "campaigns") {
+    const tab = params.get('tab');
+    if (tab === 'brands' || tab === 'favorites' || tab === 'campaigns') {
       return tab;
     }
-    return "campaigns";
+    return 'campaigns';
   };
-  
+
   const [activeTab, setActiveTabState] = useState<ExploreTab>(getTabFromUrl);
-  
+
   useEffect(() => {
     setActiveTabState(getTabFromUrl());
   }, [searchString]);
-  
+
   const setActiveTab = (tab: string) => {
     const validTab = tab as ExploreTab;
     setActiveTabState(validTab);
     setLocation(`/explore?tab=${validTab}`, { replace: true });
   };
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"open" | "closed">("open");
-  const [nicheFilter, setNicheFilter] = useState<string>("all");
-  const [budgetFilter, setBudgetFilter] = useState<string>("all");
-  const [deadlineFilter, setDeadlineFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("relevance");
-  const [applyingToCampaignId, setApplyingToCampaignId] = useState<
-    number | null
-  >(null);
-  const [applicationMessage, setApplicationMessage] = useState("");
-  const [submittingCampaignId, setSubmittingCampaignId] = useState<
-    number | null
-  >(null);
-  const [viewMode, setViewMode] = useViewPreference("creator-feed-view");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'open' | 'closed'>('open');
+  const [nicheFilter, setNicheFilter] = useState<string>('all');
+  const [budgetFilter, setBudgetFilter] = useState<string>('all');
+  const [deadlineFilter, setDeadlineFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('relevance');
+  const [applyingToCampaignId, setApplyingToCampaignId] = useState<number | null>(null);
+  const [applicationMessage, setApplicationMessage] = useState('');
+  const [submittingCampaignId, setSubmittingCampaignId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useViewPreference('creator-feed-view');
   const [showTrending, setShowTrending] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [brandSearchTerm, setBrandSearchTerm] = useState("");
+  const [brandSearchTerm, setBrandSearchTerm] = useState('');
 
   const { data: trendingCompanies = [] } = useQuery<TrendingCompany[]>({
     queryKey: ['/api/trending-companies'],
     enabled: !!user && user.role === 'creator',
   });
 
-  const { data: favorites = [], isLoading: favoritesLoading } = useQuery<FavoriteCompanyWithDetails[]>({
+  const { data: favorites = [], isLoading: favoritesLoading } = useQuery<
+    FavoriteCompanyWithDetails[]
+  >({
     queryKey: ['/api/favorite-companies'],
     enabled: !!user && user.role === 'creator',
   });
 
-  const { data: discoverableBrands = [], isLoading: brandsLoading } = useQuery<DiscoverableBrand[]>({
-    queryKey: ['/api/discover/brands', selectedCategory],
-    queryFn: async () => {
-      const url = selectedCategory 
-        ? `/api/discover/brands?category=${selectedCategory}`
-        : '/api/discover/brands';
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch brands');
-      return res.json();
+  const { data: discoverableBrands = [], isLoading: brandsLoading } = useQuery<DiscoverableBrand[]>(
+    {
+      queryKey: ['/api/discover/brands', selectedCategory],
+      queryFn: async () => {
+        const url = selectedCategory
+          ? `/api/discover/brands?category=${selectedCategory}`
+          : '/api/discover/brands';
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch brands');
+        return res.json();
+      },
+      enabled: !!user && user.role === 'creator' && activeTab === 'brands',
     },
-    enabled: !!user && user.role === 'creator' && activeTab === 'brands',
-  });
+  );
 
   const { data: featuredBrands = [] } = useQuery<DiscoverableBrand[]>({
     queryKey: ['/api/discover/featured'],
@@ -341,22 +368,27 @@ export default function CreatorFeed() {
   const filteredBrands = useMemo(() => {
     if (!brandSearchTerm) return discoverableBrands;
     const search = brandSearchTerm.toLowerCase();
-    return discoverableBrands.filter(brand => 
-      brand.name.toLowerCase().includes(search) ||
-      (brand.tradeName?.toLowerCase().includes(search)) ||
-      (brand.description?.toLowerCase().includes(search))
+    return discoverableBrands.filter(
+      (brand) =>
+        brand.name.toLowerCase().includes(search) ||
+        brand.tradeName?.toLowerCase().includes(search) ||
+        brand.description?.toLowerCase().includes(search),
     );
   }, [discoverableBrands, brandSearchTerm]);
 
   const companyIds = useMemo(() => {
-    return Array.from(new Set(campaigns.map(c => c.companyId)));
+    return Array.from(new Set(campaigns.map((c) => c.companyId)));
   }, [campaigns]);
 
-  const { data: companiesLookup = [] } = useQuery<{ id: number; name: string; tradeName: string | null; logo: string | null }[]>({
+  const { data: companiesLookup = [] } = useQuery<
+    { id: number; name: string; tradeName: string | null; logo: string | null }[]
+  >({
     queryKey: ['/api/companies-lookup', companyIds.join(',')],
     queryFn: async () => {
       if (companyIds.length === 0) return [];
-      const res = await fetch(`/api/companies-lookup?ids=${companyIds.join(',')}`, { credentials: 'include' });
+      const res = await fetch(`/api/companies-lookup?ids=${companyIds.join(',')}`, {
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Failed to fetch companies');
       return res.json();
     },
@@ -366,7 +398,7 @@ export default function CreatorFeed() {
 
   const companiesMap = useMemo(() => {
     const map = new Map<number, { name: string; tradeName: string | null }>();
-    companiesLookup.forEach(c => {
+    companiesLookup.forEach((c) => {
       map.set(c.id, { name: c.name, tradeName: c.tradeName });
     });
     return map;
@@ -391,7 +423,7 @@ export default function CreatorFeed() {
   });
 
   const filteredAndSortedCampaigns = useMemo(() => {
-    let filtered = campaigns.filter((c) => {
+    const filtered = campaigns.filter((c) => {
       // Filter by status
       if (c.status !== statusFilter) return false;
 
@@ -404,16 +436,14 @@ export default function CreatorFeed() {
       }
 
       // Filter by niche
-      if (nicheFilter !== "all") {
-        const hasNiche = c.targetNiche?.some(
-          (n) => n.toLowerCase() === nicheFilter.toLowerCase()
-        );
+      if (nicheFilter !== 'all') {
+        const hasNiche = c.targetNiche?.some((n) => n.toLowerCase() === nicheFilter.toLowerCase());
         if (!hasNiche) return false;
       }
 
       // Filter by budget
-      if (budgetFilter !== "all") {
-        const range = BUDGET_RANGES.find(r => r.value === budgetFilter);
+      if (budgetFilter !== 'all') {
+        const range = BUDGET_RANGES.find((r) => r.value === budgetFilter);
         if (range && range.min !== undefined) {
           const budget = Number(c.budget) || 0;
           if (budget < range.min || budget > range.max) return false;
@@ -421,7 +451,7 @@ export default function CreatorFeed() {
       }
 
       // Filter by deadline
-      if (deadlineFilter !== "all" && c.deadline) {
+      if (deadlineFilter !== 'all' && c.deadline) {
         const days = parseInt(deadlineFilter);
         const deadlineDate = new Date(c.deadline);
         const maxDate = addDays(new Date(), days);
@@ -439,24 +469,34 @@ export default function CreatorFeed() {
     // Sort campaigns
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case "relevance":
+        case 'relevance':
           return ((b as any).matchScore || 0) - ((a as any).matchScore || 0);
-        case "budget_high":
+        case 'budget_high':
           return (Number(b.budget) || 0) - (Number(a.budget) || 0);
-        case "budget_low":
+        case 'budget_low':
           return (Number(a.budget) || 0) - (Number(b.budget) || 0);
-        case "deadline":
+        case 'deadline':
           if (!a.deadline) return 1;
           if (!b.deadline) return -1;
           return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-        case "recent":
+        case 'recent':
         default:
           return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       }
     });
 
     return filtered;
-  }, [campaigns, statusFilter, user, applications, nicheFilter, budgetFilter, deadlineFilter, searchTerm, sortBy]);
+  }, [
+    campaigns,
+    statusFilter,
+    user,
+    applications,
+    nicheFilter,
+    budgetFilter,
+    deadlineFilter,
+    searchTerm,
+    sortBy,
+  ]);
 
   const filteredCampaigns = filteredAndSortedCampaigns;
 
@@ -465,7 +505,7 @@ export default function CreatorFeed() {
     try {
       await applyToCampaign(campaignId, applicationMessage);
       setApplyingToCampaignId(null);
-      setApplicationMessage("");
+      setApplicationMessage('');
     } finally {
       setSubmittingCampaignId(null);
     }
@@ -473,27 +513,21 @@ export default function CreatorFeed() {
 
   const handleCancel = async (applicationId: number) => {
     if (!user) return;
-    const application = applications.find(
-      (a) => a.id === applicationId && a.creatorId === user.id,
-    );
+    const application = applications.find((a) => a.id === applicationId && a.creatorId === user.id);
     if (!application) return;
     await cancelApplication(applicationId);
   };
 
   const getCampaignApplication = (campaignId: number) => {
     if (!user) return null;
-    return applications.find(
-      (a) => a.campaignId === campaignId && a.creatorId === user.id,
-    );
+    return applications.find((a) => a.campaignId === campaignId && a.creatorId === user.id);
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold font-heading tracking-tight">
-            Explorar
-          </h1>
+          <h1 className="text-3xl font-bold font-heading tracking-tight">Explorar</h1>
           <p className="text-muted-foreground">
             Descubra campanhas, marcas e oportunidades para crescer sua carreira.
           </p>
@@ -542,16 +576,25 @@ export default function CreatorFeed() {
             {/* Filters Popover */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  data-testid="button-filters"
-                >
+                <Button variant="outline" className="gap-2" data-testid="button-filters">
                   <SlidersHorizontal className="h-4 w-4" />
                   Filtros
-                  {(statusFilter !== "open" || nicheFilter !== "all" || budgetFilter !== "all" || deadlineFilter !== "all") && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-primary text-primary-foreground">
-                      {[statusFilter !== "open", nicheFilter !== "all", budgetFilter !== "all", deadlineFilter !== "all"].filter(Boolean).length}
+                  {(statusFilter !== 'open' ||
+                    nicheFilter !== 'all' ||
+                    budgetFilter !== 'all' ||
+                    deadlineFilter !== 'all') && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-5 px-1.5 text-xs bg-primary text-primary-foreground"
+                    >
+                      {
+                        [
+                          statusFilter !== 'open',
+                          nicheFilter !== 'all',
+                          budgetFilter !== 'all',
+                          deadlineFilter !== 'all',
+                        ].filter(Boolean).length
+                      }
                     </Badge>
                   )}
                 </Button>
@@ -560,15 +603,18 @@ export default function CreatorFeed() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">Filtros</h4>
-                    {(statusFilter !== "open" || nicheFilter !== "all" || budgetFilter !== "all" || deadlineFilter !== "all") && (
+                    {(statusFilter !== 'open' ||
+                      nicheFilter !== 'all' ||
+                      budgetFilter !== 'all' ||
+                      deadlineFilter !== 'all') && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setStatusFilter("open");
-                          setNicheFilter("all");
-                          setBudgetFilter("all");
-                          setDeadlineFilter("all");
+                          setStatusFilter('open');
+                          setNicheFilter('all');
+                          setBudgetFilter('all');
+                          setDeadlineFilter('all');
                         }}
                         className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
                         data-testid="button-clear-filters"
@@ -578,13 +624,13 @@ export default function CreatorFeed() {
                     )}
                   </div>
                   <Separator />
-                  
+
                   {/* Status */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Status</Label>
                     <Select
                       value={statusFilter}
-                      onValueChange={(value) => setStatusFilter(value as "open" | "closed")}
+                      onValueChange={(value) => setStatusFilter(value as 'open' | 'closed')}
                     >
                       <SelectTrigger data-testid="select-status-filter">
                         <SelectValue />
@@ -599,17 +645,16 @@ export default function CreatorFeed() {
                   {/* Category */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Categoria</Label>
-                    <Select
-                      value={nicheFilter}
-                      onValueChange={(value) => setNicheFilter(value)}
-                    >
+                    <Select value={nicheFilter} onValueChange={(value) => setNicheFilter(value)}>
                       <SelectTrigger data-testid="select-niche-filter">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todas as Categorias</SelectItem>
                         {AVAILABLE_NICHES.map((niche) => (
-                          <SelectItem key={niche} value={niche}>{niche}</SelectItem>
+                          <SelectItem key={niche} value={niche}>
+                            {niche}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -618,16 +663,15 @@ export default function CreatorFeed() {
                   {/* Budget */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Orçamento</Label>
-                    <Select
-                      value={budgetFilter}
-                      onValueChange={(value) => setBudgetFilter(value)}
-                    >
+                    <Select value={budgetFilter} onValueChange={(value) => setBudgetFilter(value)}>
                       <SelectTrigger data-testid="select-budget-filter">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
                         {BUDGET_RANGES.map((range) => (
-                          <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
+                          <SelectItem key={range.value} value={range.value}>
+                            {range.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -645,7 +689,9 @@ export default function CreatorFeed() {
                       </SelectTrigger>
                       <SelectContent>
                         {DEADLINE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -655,10 +701,7 @@ export default function CreatorFeed() {
             </Popover>
 
             {/* Sort */}
-            <Select
-              value={sortBy}
-              onValueChange={(value) => setSortBy(value)}
-            >
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value)}>
               <SelectTrigger className="w-[160px]" data-testid="select-sort">
                 <div className="flex items-center gap-2">
                   <ArrowUpDown className="h-4 w-4 flex-shrink-0" />
@@ -667,7 +710,9 @@ export default function CreatorFeed() {
               </SelectTrigger>
               <SelectContent>
                 {SORT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -676,411 +721,393 @@ export default function CreatorFeed() {
             <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
 
-      {/* Trending Companies Section */}
-      {showTrending && trendingCompanies.length > 0 && (
-        <Card className="border-0 shadow-lg overflow-hidden">
-          <CardHeader className="pb-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-amber-500" />
-                <CardTitle className="text-lg">Empresas em Destaque</CardTitle>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTrending(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              {trendingCompanies.slice(0, 5).map((company) => (
-                <Link key={company.id} href={`/company/${company.id}/profile`}>
-                  <div className="group flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                      {(company.tradeName || company.name)[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                        {company.tradeName || company.name}
-                      </p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {company.avgRating > 0 && (
-                          <span className="flex items-center gap-0.5">
-                            <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
-                            {company.avgRating.toFixed(1)}
-                          </span>
+          {/* Trending Companies Section */}
+          {showTrending && trendingCompanies.length > 0 && (
+            <Card className="border-0 shadow-lg overflow-hidden">
+              <CardHeader className="pb-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-amber-500" />
+                    <CardTitle className="text-lg">Empresas em Destaque</CardTitle>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTrending(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {trendingCompanies.slice(0, 5).map((company) => (
+                    <Link key={company.id} href={`/company/${company.id}/profile`}>
+                      <div className="group flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                          {(company.tradeName || company.name)[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                            {company.tradeName || company.name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {company.avgRating > 0 && (
+                              <span className="flex items-center gap-0.5">
+                                <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                                {company.avgRating.toFixed(1)}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-0.5">
+                              <Briefcase className="h-3 w-3" />
+                              {company.activeCampaigns}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Table View */}
+          {viewMode === 'table' ? (
+            <DataTable
+              columns={
+                [
+                  {
+                    key: 'company',
+                    label: 'Empresa',
+                    sortable: false,
+                    render: (campaign: Campaign) => (
+                      <CompanyNameCell companyId={campaign.companyId} companiesMap={companiesMap} />
+                    ),
+                  },
+                  {
+                    key: 'title',
+                    label: 'Título',
+                    sortable: true,
+                    render: (campaign: Campaign) => (
+                      <Link href={`/campaign/${campaign.id}`}>
+                        <span className="font-medium hover:text-primary transition-colors cursor-pointer">
+                          {campaign.title}
+                        </span>
+                      </Link>
+                    ),
+                  },
+                  {
+                    key: 'budget',
+                    label: 'Orçamento',
+                    sortable: false,
+                    className: 'hidden md:table-cell',
+                  },
+                  {
+                    key: 'deadline',
+                    label: 'Prazo',
+                    sortable: true,
+                    className: 'hidden lg:table-cell',
+                    render: (campaign: Campaign) =>
+                      format(new Date(campaign.deadline), 'dd/MM/yyyy'),
+                  },
+                  {
+                    key: 'creatorsNeeded',
+                    label: 'Vagas',
+                    sortable: true,
+                    className: 'hidden md:table-cell text-center',
+                  },
+                  {
+                    key: 'targetNiche',
+                    label: 'Nicho',
+                    sortable: false,
+                    className: 'hidden xl:table-cell',
+                    render: (campaign: Campaign) => (
+                      <div className="flex gap-1 flex-wrap">
+                        {campaign.targetNiche?.slice(0, 2).map((niche, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {niche}
+                          </Badge>
+                        ))}
+                        {campaign.targetNiche && campaign.targetNiche.length > 2 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{campaign.targetNiche.length - 2}
+                          </Badge>
                         )}
-                        <span className="flex items-center gap-0.5">
-                          <Briefcase className="h-3 w-3" />
-                          {company.activeCampaigns}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'actions',
+                    label: 'Ações',
+                    className: 'text-right',
+                    render: (campaign: Campaign) => {
+                      const application = getCampaignApplication(campaign.id);
+                      const hasApplied = !!application;
+
+                      return (
+                        <div className="flex gap-2 justify-end items-center">
+                          <Link href={`/campaign/${campaign.id}`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8"
+                              data-testid={`button-details-${campaign.id}`}
+                            >
+                              Ver detalhes
+                            </Button>
+                          </Link>
+                          {hasApplied ? (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className="bg-green-50 text-green-700 border-green-200"
+                              >
+                                <CheckCircle className="mr-1 h-3 w-3" /> Candidatado
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  application && handleCancel(application.id);
+                                }}
+                                data-testid={`button-cancel-${campaign.id}`}
+                                className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <X className="h-3 w-3 mr-1" /> Cancelar
+                              </Button>
+                            </>
+                          ) : (
+                            <Dialog
+                              open={applyingToCampaignId === campaign.id}
+                              onOpenChange={(open) => {
+                                if (!open) {
+                                  setApplyingToCampaignId(null);
+                                  setApplicationMessage('');
+                                }
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setApplyingToCampaignId(campaign.id);
+                                  }}
+                                  data-testid={`button-apply-${campaign.id}`}
+                                >
+                                  Candidatar-se
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Candidatar-se a {campaign.title}</DialogTitle>
+                                  <DialogDescription>
+                                    Apresente-se e explique por que você é ideal para esta campanha.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4">
+                                  <Textarea
+                                    placeholder="Olá, estou muito interessado porque..."
+                                    className="min-h-[150px]"
+                                    value={applicationMessage}
+                                    onChange={(e) => setApplicationMessage(e.target.value)}
+                                    data-testid="input-application-message"
+                                  />
+                                </div>
+                                <DialogFooter>
+                                  <Button
+                                    onClick={() => handleApply(campaign.id)}
+                                    disabled={submittingCampaignId === campaign.id}
+                                    data-testid="button-submit-application"
+                                  >
+                                    {submittingCampaignId === campaign.id
+                                      ? 'Enviando...'
+                                      : 'Enviar Candidatura'}
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          )}
+                        </div>
+                      );
+                    },
+                  },
+                ] as Column<Campaign>[]
+              }
+              data={filteredCampaigns}
+              keyExtractor={(campaign) => campaign.id}
+            />
+          ) : (
+            /* Grid View */
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredCampaigns.map((campaign) => {
+                const application = getCampaignApplication(campaign.id);
+                const hasApplied = !!application;
+
+                return (
+                  <Card
+                    key={campaign.id}
+                    className="group hover:shadow-xl transition-all duration-300 border-none shadow-sm bg-card/50 backdrop-blur-sm flex flex-col w-full min-w-0"
+                    data-testid={`card-campaign-${campaign.id}`}
+                  >
+                    <CardHeader>
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Badge
+                            variant="secondary"
+                            className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                          >
+                            Ativa
+                          </Badge>
+                          {(campaign as any).matchScore > 50 && (
+                            <Badge
+                              variant="secondary"
+                              className={`text-xs ${
+                                (campaign as any).matchScore >= 80
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              <Sparkles className="h-3 w-3 mr-0.5" />
+                              {(campaign as any).matchScore}% match
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {campaign.createdAt ? format(new Date(campaign.createdAt), 'dd MMM') : ''}
                         </span>
                       </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Table View */}
-      {viewMode === "table" ? (
-        <DataTable
-          columns={
-            [
-              {
-                key: "company",
-                label: "Empresa",
-                sortable: false,
-                render: (campaign: Campaign) => (
-                  <CompanyNameCell companyId={campaign.companyId} companiesMap={companiesMap} />
-                ),
-              },
-              {
-                key: "title",
-                label: "Título",
-                sortable: true,
-                render: (campaign: Campaign) => (
-                  <Link href={`/campaign/${campaign.id}`}>
-                    <span className="font-medium hover:text-primary transition-colors cursor-pointer">
-                      {campaign.title}
-                    </span>
-                  </Link>
-                ),
-              },
-              {
-                key: "budget",
-                label: "Orçamento",
-                sortable: false,
-                className: "hidden md:table-cell",
-              },
-              {
-                key: "deadline",
-                label: "Prazo",
-                sortable: true,
-                className: "hidden lg:table-cell",
-                render: (campaign: Campaign) =>
-                  format(new Date(campaign.deadline), "dd/MM/yyyy"),
-              },
-              {
-                key: "creatorsNeeded",
-                label: "Vagas",
-                sortable: true,
-                className: "hidden md:table-cell text-center",
-              },
-              {
-                key: "targetNiche",
-                label: "Nicho",
-                sortable: false,
-                className: "hidden xl:table-cell",
-                render: (campaign: Campaign) => (
-                  <div className="flex gap-1 flex-wrap">
-                    {campaign.targetNiche?.slice(0, 2).map((niche, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">
-                        {niche}
-                      </Badge>
-                    ))}
-                    {campaign.targetNiche &&
-                      campaign.targetNiche.length > 2 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{campaign.targetNiche.length - 2}
-                        </Badge>
-                      )}
-                  </div>
-                ),
-              },
-              {
-                key: "actions",
-                label: "Ações",
-                className: "text-right",
-                render: (campaign: Campaign) => {
-                  const application = getCampaignApplication(campaign.id);
-                  const hasApplied = !!application;
-
-                  return (
-                    <div className="flex gap-2 justify-end items-center">
                       <Link href={`/campaign/${campaign.id}`}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          data-testid={`button-details-${campaign.id}`}
-                        >
-                          Ver detalhes
-                        </Button>
+                        <CardTitle className="line-clamp-1 text-xl group-hover:text-primary transition-colors cursor-pointer">
+                          {campaign.title}
+                        </CardTitle>
                       </Link>
+                      <CardDescription className="line-clamp-2 h-10">
+                        {campaign.description}
+                      </CardDescription>
+                      <Link href={`/company/${campaign.companyId}/profile`}>
+                        <div
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer mt-2"
+                          data-testid={`link-company-profile-${campaign.id}`}
+                        >
+                          <Building2 className="h-3 w-3" />
+                          <span>Ver perfil da empresa</span>
+                        </div>
+                      </Link>
+                    </CardHeader>
+
+                    <CardContent className="flex-1">
+                      <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm text-muted-foreground mt-2">
+                        <div className="flex items-center gap-1.5">
+                          <DollarSign className="h-4 w-4 text-primary/70" />
+                          <span>{campaign.budget}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Users className="h-4 w-4 text-primary/70" />
+                          <span>{campaign.creatorsNeeded} Vagas</span>
+                        </div>
+                        <div className="col-span-2 flex items-center gap-1.5">
+                          <Calendar className="h-4 w-4 text-primary/70" />
+                          <span>Vence em {format(new Date(campaign.deadline), 'dd/MM/yyyy')}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+
+                    <CardFooter className="pt-0 mt-auto flex-col gap-2">
                       {hasApplied ? (
                         <>
-                          <Badge
-                            variant="outline"
-                            className="bg-green-50 text-green-700 border-green-200"
-                          >
-                            <CheckCircle className="mr-1 h-3 w-3" /> Candidatado
-                          </Badge>
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              application && handleCancel(application.id);
-                            }}
-                            data-testid={`button-cancel-${campaign.id}`}
-                            className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="w-full bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
+                            disabled
+                            data-testid={`button-applied-${campaign.id}`}
                           >
-                            <X className="h-3 w-3 mr-1" /> Cancelar
+                            <CheckCircle className="mr-2 h-4 w-4" /> Candidatou-se
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => application && handleCancel(application.id)}
+                            data-testid={`button-cancel-${campaign.id}`}
+                          >
+                            <X className="mr-2 h-4 w-4" /> Cancelar Candidatura
                           </Button>
                         </>
                       ) : (
-                        <Dialog
-                          open={applyingToCampaignId === campaign.id}
-                          onOpenChange={(open) => {
-                            if (!open) {
-                              setApplyingToCampaignId(null);
-                              setApplicationMessage("");
-                            }
-                          }}
-                        >
-                          <DialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setApplyingToCampaignId(campaign.id);
-                              }}
-                              data-testid={`button-apply-${campaign.id}`}
-                            >
-                              Candidatar-se
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>
-                                Candidatar-se a {campaign.title}
-                              </DialogTitle>
-                              <DialogDescription>
-                                Apresente-se e explique por que você é ideal para
-                                esta campanha.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="py-4">
-                              <Textarea
-                                placeholder="Olá, estou muito interessado porque..."
-                                className="min-h-[150px]"
-                                value={applicationMessage}
-                                onChange={(e) =>
-                                  setApplicationMessage(e.target.value)
-                                }
-                                data-testid="input-application-message"
-                              />
-                            </div>
-                            <DialogFooter>
-                              <Button
-                                onClick={() => handleApply(campaign.id)}
-                                disabled={submittingCampaignId === campaign.id}
-                                data-testid="button-submit-application"
-                              >
-                                {submittingCampaignId === campaign.id
-                                  ? "Enviando..."
-                                  : "Enviar Candidatura"}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      )}
-                    </div>
-                  );
-                },
-              },
-            ] as Column<Campaign>[]
-          }
-          data={filteredCampaigns}
-          keyExtractor={(campaign) => campaign.id}
-        />
-      ) : (
-        /* Grid View */
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCampaigns.map((campaign) => {
-            const application = getCampaignApplication(campaign.id);
-            const hasApplied = !!application;
-
-            return (
-              <Card
-                key={campaign.id}
-                className="group hover:shadow-xl transition-all duration-300 border-none shadow-sm bg-card/50 backdrop-blur-sm flex flex-col w-full min-w-0"
-                data-testid={`card-campaign-${campaign.id}`}
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <Badge
-                        variant="secondary"
-                        className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                      >
-                        Ativa
-                      </Badge>
-                      {(campaign as any).matchScore > 50 && (
-                        <Badge
-                          variant="secondary"
-                          className={`text-xs ${
-                            (campaign as any).matchScore >= 80
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}
-                        >
-                          <Sparkles className="h-3 w-3 mr-0.5" />
-                          {(campaign as any).matchScore}% match
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {campaign.createdAt
-                        ? format(new Date(campaign.createdAt), "dd MMM")
-                        : ""}
-                    </span>
-                  </div>
-                  <Link href={`/campaign/${campaign.id}`}>
-                    <CardTitle className="line-clamp-1 text-xl group-hover:text-primary transition-colors cursor-pointer">
-                      {campaign.title}
-                    </CardTitle>
-                  </Link>
-                  <CardDescription className="line-clamp-2 h-10">
-                    {campaign.description}
-                  </CardDescription>
-                  <Link href={`/company/${campaign.companyId}/profile`}>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer mt-2" data-testid={`link-company-profile-${campaign.id}`}>
-                      <Building2 className="h-3 w-3" />
-                      <span>Ver perfil da empresa</span>
-                    </div>
-                  </Link>
-                </CardHeader>
-
-                <CardContent className="flex-1">
-                  <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm text-muted-foreground mt-2">
-                    <div className="flex items-center gap-1.5">
-                      <DollarSign className="h-4 w-4 text-primary/70" />
-                      <span>{campaign.budget}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Users className="h-4 w-4 text-primary/70" />
-                      <span>{campaign.creatorsNeeded} Vagas</span>
-                    </div>
-                    <div className="col-span-2 flex items-center gap-1.5">
-                      <Calendar className="h-4 w-4 text-primary/70" />
-                      <span>
-                        Vence em{" "}
-                        {format(new Date(campaign.deadline), "dd/MM/yyyy")}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-
-                <CardFooter className="pt-0 mt-auto flex-col gap-2">
-                  {hasApplied ? (
-                    <>
-                      <Button
-                        className="w-full bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
-                        disabled
-                        data-testid={`button-applied-${campaign.id}`}
-                      >
-                        <CheckCircle className="mr-2 h-4 w-4" /> Candidatou-se
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="w-full"
-                        onClick={() =>
-                          application && handleCancel(application.id)
-                        }
-                        data-testid={`button-cancel-${campaign.id}`}
-                      >
-                        <X className="mr-2 h-4 w-4" /> Cancelar Candidatura
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Dialog
-                        open={applyingToCampaignId === campaign.id}
-                        onOpenChange={(open) => {
-                          if (!open) {
-                            setApplyingToCampaignId(null);
-                            setApplicationMessage("");
-                          }
-                        }}
-                      >
-                        <DialogTrigger asChild>
-                          <Button
-                            className="w-full"
-                            onClick={() => setApplyingToCampaignId(campaign.id)}
-                            data-testid={`button-apply-${campaign.id}`}
-                          >
-                            Candidatar-se
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>
-                              Candidatar-se a {campaign.title}
-                            </DialogTitle>
-                            <DialogDescription>
-                              Apresente-se e explique por que você é ideal para
-                              esta campanha.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="py-4">
-                            <Textarea
-                              placeholder="Olá, estou muito interessado porque..."
-                              className="min-h-[150px]"
-                              value={applicationMessage}
-                              onChange={(e) =>
-                                setApplicationMessage(e.target.value)
+                        <>
+                          <Dialog
+                            open={applyingToCampaignId === campaign.id}
+                            onOpenChange={(open) => {
+                              if (!open) {
+                                setApplyingToCampaignId(null);
+                                setApplicationMessage('');
                               }
-                              data-testid="input-application-message"
-                            />
-                          </div>
-                          <DialogFooter>
+                            }}
+                          >
+                            <DialogTrigger asChild>
+                              <Button
+                                className="w-full"
+                                onClick={() => setApplyingToCampaignId(campaign.id)}
+                                data-testid={`button-apply-${campaign.id}`}
+                              >
+                                Candidatar-se
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Candidatar-se a {campaign.title}</DialogTitle>
+                                <DialogDescription>
+                                  Apresente-se e explique por que você é ideal para esta campanha.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="py-4">
+                                <Textarea
+                                  placeholder="Olá, estou muito interessado porque..."
+                                  className="min-h-[150px]"
+                                  value={applicationMessage}
+                                  onChange={(e) => setApplicationMessage(e.target.value)}
+                                  data-testid="input-application-message"
+                                />
+                              </div>
+                              <DialogFooter>
+                                <Button
+                                  onClick={() => handleApply(campaign.id)}
+                                  disabled={submittingCampaignId === campaign.id}
+                                  data-testid="button-submit-application"
+                                >
+                                  {submittingCampaignId === campaign.id
+                                    ? 'Enviando...'
+                                    : 'Enviar Candidatura'}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          <Link href={`/campaign/${campaign.id}`} className="w-full">
                             <Button
-                              onClick={() => handleApply(campaign.id)}
-                              disabled={submittingCampaignId === campaign.id}
-                              data-testid="button-submit-application"
+                              variant="outline"
+                              className="w-full"
+                              data-testid={`button-details-${campaign.id}`}
                             >
-                              {submittingCampaignId === campaign.id
-                                ? "Enviando..."
-                                : "Enviar Candidatura"}
+                              Ver Detalhes <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                      <Link
-                        href={`/campaign/${campaign.id}`}
-                        className="w-full"
-                      >
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          data-testid={`button-details-${campaign.id}`}
-                        >
-                          Ver Detalhes <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </>
-                  )}
-                </CardFooter>
-              </Card>
-            );
-          })}
+                          </Link>
+                        </>
+                      )}
+                    </CardFooter>
+                  </Card>
+                );
+              })}
 
-          {filteredCampaigns.length === 0 && (
-            <div className="col-span-full py-12 text-center text-muted-foreground">
-              Nenhuma campanha encontrada com sua busca.
+              {filteredCampaigns.length === 0 && (
+                <div className="col-span-full py-12 text-center text-muted-foreground">
+                  Nenhuma campanha encontrada com sua busca.
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
         </TabsContent>
 
         <TabsContent value="brands" className="space-y-8">
@@ -1097,7 +1124,7 @@ export default function CreatorFeed() {
           {/* Category Pills */}
           <div className="flex items-center justify-center gap-2 flex-wrap">
             <Button
-              variant={selectedCategory === null ? "default" : "outline"}
+              variant={selectedCategory === null ? 'default' : 'outline'}
               size="sm"
               className="rounded-full"
               onClick={() => setSelectedCategory(null)}
@@ -1110,7 +1137,7 @@ export default function CreatorFeed() {
               return (
                 <Button
                   key={key}
-                  variant={selectedCategory === key ? "default" : "outline"}
+                  variant={selectedCategory === key ? 'default' : 'outline'}
                   size="sm"
                   className="rounded-full"
                   onClick={() => setSelectedCategory(key)}
@@ -1161,10 +1188,10 @@ export default function CreatorFeed() {
                           {/* Vertical Card OnBrand Style */}
                           <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-muted shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:-translate-y-1">
                             {brand.coverPhoto ? (
-                              <img 
-                                src={brand.coverPhoto} 
-                                alt={displayName} 
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                              <img
+                                src={brand.coverPhoto}
+                                alt={displayName}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />
                             ) : (
                               <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center">
@@ -1173,12 +1200,16 @@ export default function CreatorFeed() {
                             )}
                             {/* Gradient Overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                            
+
                             {/* Logo */}
                             <div className="absolute bottom-16 left-3">
                               <div className="h-12 w-12 rounded-full bg-white shadow-lg border-2 border-white overflow-hidden">
                                 {brand.logo ? (
-                                  <img src={brand.logo} alt={displayName} className="w-full h-full object-cover" />
+                                  <img
+                                    src={brand.logo}
+                                    alt={displayName}
+                                    className="w-full h-full object-cover"
+                                  />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary to-primary/80 text-white font-bold text-lg">
                                     {displayName[0]}
@@ -1189,7 +1220,9 @@ export default function CreatorFeed() {
 
                             {/* Brand Info */}
                             <div className="absolute bottom-0 left-0 right-0 p-3">
-                              <h4 className="font-bold text-white text-sm truncate">{displayName}</h4>
+                              <h4 className="font-bold text-white text-sm truncate">
+                                {displayName}
+                              </h4>
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                 <Badge className="bg-amber-500/90 text-white border-0 text-[10px] px-1.5 py-0">
                                   Trending
@@ -1202,7 +1235,10 @@ export default function CreatorFeed() {
                               </div>
                               {brand.openCampaignsCount > 0 && (
                                 <p className="text-white/80 text-[11px] mt-1.5">
-                                  {brand.openCampaignsCount} {brand.openCampaignsCount === 1 ? 'campanha ativa' : 'campanhas ativas'}
+                                  {brand.openCampaignsCount}{' '}
+                                  {brand.openCampaignsCount === 1
+                                    ? 'campanha ativa'
+                                    : 'campanhas ativas'}
                                 </p>
                               )}
                             </div>
@@ -1230,8 +1266,8 @@ export default function CreatorFeed() {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Nenhuma marca encontrada</h3>
                 <p className="text-muted-foreground text-center">
-                  {brandSearchTerm 
-                    ? 'Tente buscar com outros termos' 
+                  {brandSearchTerm
+                    ? 'Tente buscar com outros termos'
                     : 'Ainda não há marcas cadastradas nesta categoria'}
                 </p>
               </CardContent>
@@ -1242,14 +1278,16 @@ export default function CreatorFeed() {
                 <div className="flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
                   <h3 className="text-xl font-bold">
-                    {selectedCategory ? categoryConfig[selectedCategory]?.label || 'Marcas' : 'Todas as Marcas'}
+                    {selectedCategory
+                      ? categoryConfig[selectedCategory]?.label || 'Marcas'
+                      : 'Todas as Marcas'}
                   </h3>
                   <Badge variant="secondary" className="rounded-full">
                     {filteredBrands.length} marcas
                   </Badge>
                 </div>
               </div>
-              
+
               {/* OnBrand Style Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {filteredBrands.map((brand, idx) => {
@@ -1267,10 +1305,10 @@ export default function CreatorFeed() {
                           {/* Vertical Card OnBrand Style */}
                           <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-muted shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:-translate-y-1">
                             {brand.coverPhoto ? (
-                              <img 
-                                src={brand.coverPhoto} 
-                                alt={displayName} 
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                              <img
+                                src={brand.coverPhoto}
+                                alt={displayName}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />
                             ) : (
                               <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center">
@@ -1279,7 +1317,7 @@ export default function CreatorFeed() {
                             )}
                             {/* Gradient Overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                            
+
                             {/* Featured Badge */}
                             {brand.isFeatured && (
                               <div className="absolute top-2 right-2">
@@ -1288,12 +1326,16 @@ export default function CreatorFeed() {
                                 </Badge>
                               </div>
                             )}
-                            
+
                             {/* Logo */}
                             <div className="absolute bottom-14 left-2.5">
                               <div className="h-10 w-10 rounded-full bg-white shadow-lg border-2 border-white overflow-hidden">
                                 {brand.logo ? (
-                                  <img src={brand.logo} alt={displayName} className="w-full h-full object-cover" />
+                                  <img
+                                    src={brand.logo}
+                                    alt={displayName}
+                                    className="w-full h-full object-cover"
+                                  />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary to-primary/80 text-white font-bold">
                                     {displayName[0]}
@@ -1304,7 +1346,9 @@ export default function CreatorFeed() {
 
                             {/* Brand Info */}
                             <div className="absolute bottom-0 left-0 right-0 p-2.5">
-                              <h4 className="font-bold text-white text-sm truncate">{displayName}</h4>
+                              <h4 className="font-bold text-white text-sm truncate">
+                                {displayName}
+                              </h4>
                               <div className="flex items-center gap-1 mt-1 flex-wrap">
                                 {config && (
                                   <Badge className="bg-white/20 text-white border-0 text-[10px] px-1.5 py-0 backdrop-blur-sm">
@@ -1331,7 +1375,11 @@ export default function CreatorFeed() {
           {/* CTA Section */}
           <div className="text-center py-8 border-t">
             <p className="text-muted-foreground mb-2">Quer ver mais marcas?</p>
-            <Button variant="outline" className="rounded-full" onClick={() => setActiveTab("campaigns")}>
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setActiveTab('campaigns')}
+            >
               Ver todas as campanhas
             </Button>
           </div>
@@ -1354,12 +1402,12 @@ export default function CreatorFeed() {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Nenhuma empresa favorita</h3>
                 <p className="text-muted-foreground text-center max-w-md mb-6">
-                  Quando você encontrar empresas interessantes, adicione-as aos favoritos
-                  para acompanhar suas campanhas e novidades.
+                  Quando você encontrar empresas interessantes, adicione-as aos favoritos para
+                  acompanhar suas campanhas e novidades.
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => setActiveTab("campaigns")}
+                  onClick={() => setActiveTab('campaigns')}
                   data-testid="button-explore-companies"
                 >
                   <Search className="mr-2 h-4 w-4" />
@@ -1418,7 +1466,11 @@ export default function CreatorFeed() {
                     </CardContent>
                     <CardFooter>
                       <Link href={`/company/${favorite.companyId}/profile`} className="w-full">
-                        <Button variant="outline" className="w-full" data-testid={`button-view-company-${favorite.companyId}`}>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          data-testid={`button-view-company-${favorite.companyId}`}
+                        >
                           Ver Perfil
                           <ExternalLink className="ml-2 h-4 w-4" />
                         </Button>
