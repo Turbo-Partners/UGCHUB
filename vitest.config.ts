@@ -8,6 +8,12 @@ export default defineConfig({
     root: '.',
     include: ['server/__tests__/**/*.test.ts'],
     testTimeout: 10000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['server/**/*.ts'],
+      exclude: ['server/__tests__/**', 'server/seed*.ts'],
+    },
   },
   resolve: {
     alias: {

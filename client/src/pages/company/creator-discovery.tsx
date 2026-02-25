@@ -8,8 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { InstagramAvatar } from '@/components/instagram-avatar';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InstagramAvatar, batchFetchProfilePics } from '@/components/instagram-avatar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,14 +32,14 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { NICHE_OPTIONS } from '@shared/constants';
-import { 
-  Search, 
-  Users, 
-  TrendingUp, 
-  CheckCircle, 
-  Instagram, 
-  Loader2, 
-  Save, 
+import {
+  Search,
+  Users,
+  TrendingUp,
+  CheckCircle,
+  Instagram,
+  Loader2,
+  Save,
   ExternalLink,
   UserPlus,
   ChevronDown,
@@ -87,20 +93,24 @@ export default function CreatorDiscoveryPage() {
   const [activeTab, setActiveTab] = useState('platform');
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  
+
   const [platformSearch, setPlatformSearch] = useState('');
   const [nicheFilter, setNicheFilter] = useState<string>('all');
   const [minFollowers, setMinFollowers] = useState<string>('');
   const [maxFollowers, setMaxFollowers] = useState<string>('');
-  
+
   const [discoverySearch, setDiscoverySearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [discoveryResult, setDiscoveryResult] = useState<InstagramProfile | null>(null);
 
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [selectedCreatorForInvite, setSelectedCreatorForInvite] = useState<{ id: number; name: string } | null>(null);
+  const [selectedCreatorForInvite, setSelectedCreatorForInvite] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [communityInviting, setCommunityInviting] = useState<number | null>(null);
-  
+  const [batchPicUrls, setBatchPicUrls] = useState<Map<string, string>>(new Map());
+
   const { data: creators = [], isLoading: loadingCreators } = useQuery<CreatorDiscoveryStat[]>({
     queryKey: ['/api/creators/discovery-stats'],
     queryFn: async () => {
@@ -109,8 +119,10 @@ export default function CreatorDiscoveryPage() {
       return res.json();
     },
   });
-  
-  const { data: savedProfiles = [], isLoading: loadingSavedProfiles } = useQuery<CreatorDiscoveryProfile[]>({
+
+  const { data: savedProfiles = [], isLoading: loadingSavedProfiles } = useQuery<
+    CreatorDiscoveryProfile[]
+  >({
     queryKey: ['/api/discovery-profiles'],
     queryFn: async () => {
       const res = await fetch('/api/discovery-profiles', { credentials: 'include' });
@@ -118,7 +130,7 @@ export default function CreatorDiscoveryPage() {
       return res.json();
     },
   });
-  
+
   const enrichTriggered = useRef(false);
   useEffect(() => {
     if (!loadingCreators && creators.length > 0 && !enrichTriggered.current) {
@@ -128,15 +140,25 @@ export default function CreatorDiscoveryPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ limit: 5 }),
-      }).then(res => {
-        if (res.ok) {
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ['/api/creators/discovery-stats'] });
-          }, 30000);
-        }
-      }).catch(() => {});
+      })
+        .then((res) => {
+          if (res.ok) {
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/creators/discovery-stats'] });
+            }, 30000);
+          }
+        })
+        .catch(() => {});
     }
   }, [loadingCreators, creators.length]);
+
+  // Batch fetch profile pics for all creators with instagram
+  useEffect(() => {
+    if (!creators || creators.length === 0) return;
+    const usernames = creators.filter((c) => c.instagram).map((c) => c.instagram!);
+    if (usernames.length === 0) return;
+    batchFetchProfilePics(usernames).then(setBatchPicUrls);
+  }, [creators]);
 
   const saveProfileMutation = useMutation({
     mutationFn: async (profile: InstagramProfile) => {
@@ -169,40 +191,45 @@ export default function CreatorDiscoveryPage() {
       toast.error('Erro ao salvar perfil');
     },
   });
-  
+
   const filteredCreators = useMemo(() => {
-    return creators.filter(creator => {
-      if (creator.instagram && !creator.instagramValidated && (!creator.instagramFollowers || creator.instagramFollowers === 0)) {
+    return creators.filter((creator) => {
+      if (
+        creator.instagram &&
+        !creator.instagramValidated &&
+        (!creator.instagramFollowers || creator.instagramFollowers === 0)
+      ) {
         return false;
       }
 
-      const matchesSearch = platformSearch === '' ||
+      const matchesSearch =
+        platformSearch === '' ||
         creator.name.toLowerCase().includes(platformSearch.toLowerCase()) ||
         creator.instagram?.toLowerCase().includes(platformSearch.toLowerCase());
-      
+
       let matchesNiche = true;
       if (nicheFilter !== 'all') {
         if (!creator.niche || creator.niche.length === 0) {
           matchesNiche = false;
         } else {
-          matchesNiche = creator.niche.some(niche => 
-            niche.toLowerCase() === nicheFilter.toLowerCase()
+          matchesNiche = creator.niche.some(
+            (niche) => niche.toLowerCase() === nicheFilter.toLowerCase(),
           );
         }
       }
-      
+
       let matchesMinFollowers = true;
       if (minFollowers) {
         const minNum = parseInt(minFollowers);
         matchesMinFollowers = (creator.instagramFollowers || 0) >= minNum;
       }
-      
+
       let matchesMaxFollowers = true;
       if (maxFollowers) {
         const maxNum = parseInt(maxFollowers);
         matchesMaxFollowers = (creator.instagramFollowers || 0) <= maxNum;
       }
-      
+
       return matchesSearch && matchesNiche && matchesMinFollowers && matchesMaxFollowers;
     });
   }, [creators, platformSearch, nicheFilter, minFollowers, maxFollowers]);
@@ -210,23 +237,23 @@ export default function CreatorDiscoveryPage() {
   const totalPages = Math.ceil(filteredCreators.length / ITEMS_PER_PAGE);
   const paginatedCreators = filteredCreators.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    currentPage * ITEMS_PER_PAGE,
   );
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  
+
   const handleDiscoverySearch = async () => {
     if (!discoverySearch.trim()) return;
-    
+
     setIsSearching(true);
     setDiscoveryResult(null);
-    
+
     try {
       const isHashtag = discoverySearch.startsWith('#');
-      
+
       if (isHashtag) {
         toast.info('Busca por hashtag ainda não disponível');
       } else {
@@ -237,14 +264,14 @@ export default function CreatorDiscoveryPage() {
           credentials: 'include',
           body: JSON.stringify({ username }),
         });
-        
+
         if (!res.ok) {
           throw new Error('Failed to validate profile');
         }
-        
+
         const result = await res.json();
         setDiscoveryResult(result);
-        
+
         if (!result.exists) {
           toast.error('Perfil não encontrado');
         }
@@ -267,7 +294,9 @@ export default function CreatorDiscoveryPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erro ao enviar convite. Verifique se você tem uma empresa selecionada.');
+        toast.error(
+          data.error || 'Erro ao enviar convite. Verifique se você tem uma empresa selecionada.',
+        );
         return;
       }
       toast.success('Convite para comunidade enviado!');
@@ -277,7 +306,16 @@ export default function CreatorDiscoveryPage() {
       setCommunityInviting(null);
     }
   };
-  
+
+  const getCreatorPicUrl = (creator: CreatorDiscoveryStat): string | undefined => {
+    if (creator.instagram) {
+      const clean = creator.instagram.replace('@', '').trim().toLowerCase();
+      const batchUrl = batchPicUrls.get(clean);
+      if (batchUrl) return batchUrl;
+    }
+    return undefined;
+  };
+
   const formatFollowers = (count?: number | null) => {
     if (!count) return '0';
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
@@ -286,10 +324,10 @@ export default function CreatorDiscoveryPage() {
   };
 
   const getNicheLabel = (value: string) => {
-    const option = NICHE_OPTIONS.find(n => n.value.toLowerCase() === value.toLowerCase());
+    const option = NICHE_OPTIONS.find((n) => n.value.toLowerCase() === value.toLowerCase());
     return option?.label || value;
   };
-  
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -297,14 +335,23 @@ export default function CreatorDiscoveryPage() {
         description="Encontre os criadores ideais para sua próxima campanha."
         data-testid="page-header-discovery"
       />
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" data-testid="tabs-discovery">
+
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="w-full"
+        data-testid="tabs-discovery"
+      >
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="platform" data-testid="tab-platform">
             <CheckCircle className="h-4 w-4 mr-2" />
             Na Plataforma
             {filteredCreators.length > 0 && (
-              <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0 h-5" data-testid="badge-creators-count">
+              <Badge
+                variant="secondary"
+                className="ml-2 text-[10px] px-1.5 py-0 h-5"
+                data-testid="badge-creators-count"
+              >
                 {filteredCreators.length}
               </Badge>
             )}
@@ -314,7 +361,7 @@ export default function CreatorDiscoveryPage() {
             Descobrir Novos
           </TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="platform" className="mt-6" data-testid="content-platform">
           <div className="flex flex-wrap gap-3 mb-6">
             <div className="relative flex-1 min-w-[200px]">
@@ -322,13 +369,22 @@ export default function CreatorDiscoveryPage() {
               <Input
                 placeholder="Buscar por nome, bio ou keywords..."
                 value={platformSearch}
-                onChange={(e) => { setPlatformSearch(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => {
+                  setPlatformSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="pl-10"
                 data-testid="input-platform-search"
               />
             </div>
-            
-            <Select value={nicheFilter} onValueChange={(v) => { setNicheFilter(v); setCurrentPage(1); }}>
+
+            <Select
+              value={nicheFilter}
+              onValueChange={(v) => {
+                setNicheFilter(v);
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="w-[180px]" data-testid="select-niche">
                 <SelectValue placeholder="Nicho" />
               </SelectTrigger>
@@ -341,21 +397,27 @@ export default function CreatorDiscoveryPage() {
                 ))}
               </SelectContent>
             </Select>
-            
+
             <Input
               type="number"
               placeholder="Seguidores mín"
               value={minFollowers}
-              onChange={(e) => { setMinFollowers(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => {
+                setMinFollowers(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-[130px]"
               data-testid="input-min-followers"
             />
-            
+
             <Input
               type="number"
               placeholder="Seguidores máx"
               value={maxFollowers}
-              onChange={(e) => { setMaxFollowers(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => {
+                setMaxFollowers(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-[130px]"
               data-testid="input-max-followers"
             />
@@ -363,9 +425,13 @@ export default function CreatorDiscoveryPage() {
 
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground" data-testid="text-total-results">
-              {filteredCreators.length} {filteredCreators.length === 1 ? 'criador encontrado' : 'criadores encontrados'}
+              {filteredCreators.length}{' '}
+              {filteredCreators.length === 1 ? 'criador encontrado' : 'criadores encontrados'}
             </p>
-            <div className="flex items-center gap-1 border rounded-lg p-0.5" data-testid="view-mode-toggle">
+            <div
+              className="flex items-center gap-1 border rounded-lg p-0.5"
+              data-testid="view-mode-toggle"
+            >
               <button
                 onClick={() => setViewMode('cards')}
                 className={`p-1.5 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
@@ -384,7 +450,7 @@ export default function CreatorDiscoveryPage() {
               </button>
             </div>
           </div>
-          
+
           {loadingCreators ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -396,7 +462,10 @@ export default function CreatorDiscoveryPage() {
           ) : (
             <>
               {viewMode === 'cards' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="grid-platform-creators">
+                <div
+                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"
+                  data-testid="grid-platform-creators"
+                >
                   {paginatedCreators.map((creator) => (
                     <div
                       key={creator.id}
@@ -408,6 +477,7 @@ export default function CreatorDiscoveryPage() {
                           {creator.instagram ? (
                             <InstagramAvatar
                               username={creator.instagram}
+                              initialPicUrl={getCreatorPicUrl(creator)}
                               size="md"
                               className="h-14 w-14 ring-3 ring-card shadow-lg"
                             />
@@ -427,7 +497,9 @@ export default function CreatorDiscoveryPage() {
                           className="font-semibold text-sm leading-tight flex items-center gap-1"
                           data-testid={`text-name-${creator.id}`}
                         >
-                          <span className="truncate max-w-[140px]">{creator.name.split(' ').slice(0, 2).join(' ')}</span>
+                          <span className="truncate max-w-[140px]">
+                            {creator.name.split(' ').slice(0, 2).join(' ')}
+                          </span>
                           {creator.instagramValidated && (
                             <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
                           )}
@@ -441,7 +513,10 @@ export default function CreatorDiscoveryPage() {
 
                         <div className="flex items-center gap-1 mt-2">
                           <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-sm font-semibold" data-testid={`text-followers-${creator.id}`}>
+                          <span
+                            className="text-sm font-semibold"
+                            data-testid={`text-followers-${creator.id}`}
+                          >
                             {formatFollowers(creator.instagramFollowers)}
                           </span>
                         </div>
@@ -449,20 +524,32 @@ export default function CreatorDiscoveryPage() {
                         {creator.city && creator.state && (
                           <p className="text-[11px] text-muted-foreground/70 flex items-center gap-0.5 mt-1">
                             <MapPin className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{creator.city}, {creator.state}</span>
+                            <span className="truncate">
+                              {creator.city}, {creator.state}
+                            </span>
                           </p>
                         )}
 
                         {(creator.campaignsCount > 0 || creator.communitiesCount > 0) && (
                           <div className="flex items-center gap-1.5 mt-2 flex-wrap justify-center">
                             {creator.campaignsCount > 0 && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5" data-testid={`text-campaigns-${creator.id}`}>
-                                {creator.campaignsCount} {creator.campaignsCount === 1 ? 'campanha' : 'campanhas'}
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] px-1.5 py-0 h-5"
+                                data-testid={`text-campaigns-${creator.id}`}
+                              >
+                                {creator.campaignsCount}{' '}
+                                {creator.campaignsCount === 1 ? 'campanha' : 'campanhas'}
                               </Badge>
                             )}
                             {creator.communitiesCount > 0 && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5" data-testid={`text-communities-${creator.id}`}>
-                                {creator.communitiesCount} {creator.communitiesCount === 1 ? 'comunidade' : 'comunidades'}
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] px-1.5 py-0 h-5"
+                                data-testid={`text-communities-${creator.id}`}
+                              >
+                                {creator.communitiesCount}{' '}
+                                {creator.communitiesCount === 1 ? 'comunidade' : 'comunidades'}
                               </Badge>
                             )}
                           </div>
@@ -543,11 +630,16 @@ export default function CreatorDiscoveryPage() {
                     </TableHeader>
                     <TableBody>
                       {paginatedCreators.map((creator) => (
-                        <TableRow key={creator.id} className="group" data-testid={`row-creator-${creator.id}`}>
+                        <TableRow
+                          key={creator.id}
+                          className="group"
+                          data-testid={`row-creator-${creator.id}`}
+                        >
                           <TableCell>
                             {creator.instagram ? (
                               <InstagramAvatar
                                 username={creator.instagram}
+                                initialPicUrl={getCreatorPicUrl(creator)}
                                 size="sm"
                                 className="h-8 w-8"
                               />
@@ -562,7 +654,10 @@ export default function CreatorDiscoveryPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-sm" data-testid={`text-table-name-${creator.id}`}>
+                              <span
+                                className="font-medium text-sm"
+                                data-testid={`text-table-name-${creator.id}`}
+                              >
                                 {creator.name.split(' ').slice(0, 2).join(' ')}
                               </span>
                               {creator.instagramValidated && (
@@ -572,7 +667,10 @@ export default function CreatorDiscoveryPage() {
                           </TableCell>
                           <TableCell>
                             {creator.instagram ? (
-                              <span className="text-sm text-muted-foreground" data-testid={`text-table-instagram-${creator.id}`}>
+                              <span
+                                className="text-sm text-muted-foreground"
+                                data-testid={`text-table-instagram-${creator.id}`}
+                              >
                                 @{creator.instagram.replace('@', '')}
                               </span>
                             ) : (
@@ -580,13 +678,19 @@ export default function CreatorDiscoveryPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <span className="text-sm font-semibold" data-testid={`text-table-followers-${creator.id}`}>
+                            <span
+                              className="text-sm font-semibold"
+                              data-testid={`text-table-followers-${creator.id}`}
+                            >
                               {formatFollowers(creator.instagramFollowers)}
                             </span>
                           </TableCell>
                           <TableCell>
                             {creator.city && creator.state ? (
-                              <span className="text-sm text-muted-foreground" data-testid={`text-table-location-${creator.id}`}>
+                              <span
+                                className="text-sm text-muted-foreground"
+                                data-testid={`text-table-location-${creator.id}`}
+                              >
                                 {creator.city}, {creator.state}
                               </span>
                             ) : (
@@ -597,7 +701,12 @@ export default function CreatorDiscoveryPage() {
                             <div className="flex items-center gap-1 flex-wrap">
                               {creator.niche && creator.niche.length > 0 ? (
                                 creator.niche.slice(0, 2).map((n, i) => (
-                                  <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0 h-5" data-testid={`badge-niche-${creator.id}-${i}`}>
+                                  <Badge
+                                    key={i}
+                                    variant="secondary"
+                                    className="text-[10px] px-1.5 py-0 h-5"
+                                    data-testid={`badge-niche-${creator.id}-${i}`}
+                                  >
                                     {getNicheLabel(n)}
                                   </Badge>
                                 ))
@@ -605,26 +714,41 @@ export default function CreatorDiscoveryPage() {
                                 <span className="text-sm text-muted-foreground/50">—</span>
                               )}
                               {creator.niche && creator.niche.length > 2 && (
-                                <span className="text-[10px] text-muted-foreground">+{creator.niche.length - 2}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  +{creator.niche.length - 2}
+                                </span>
                               )}
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="text-sm" data-testid={`text-table-campaigns-${creator.id}`}>
+                            <span
+                              className="text-sm"
+                              data-testid={`text-table-campaigns-${creator.id}`}
+                            >
                               {creator.campaignsCount}
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Link href={`/creator/${creator.id}/profile`}>
-                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" data-testid={`button-table-view-${creator.id}`}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs"
+                                  data-testid={`button-table-view-${creator.id}`}
+                                >
                                   <Eye className="h-3.5 w-3.5 mr-1" />
                                   Ver Perfil
                                 </Button>
                               </Link>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-primary" data-testid={`button-table-invite-${creator.id}`}>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs text-primary"
+                                    data-testid={`button-table-invite-${creator.id}`}
+                                  >
                                     <Send className="h-3.5 w-3.5 mr-1" />
                                     Convidar
                                     <ChevronDown className="h-3 w-3 ml-0.5" />
@@ -633,7 +757,10 @@ export default function CreatorDiscoveryPage() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      setSelectedCreatorForInvite({ id: creator.id, name: creator.name });
+                                      setSelectedCreatorForInvite({
+                                        id: creator.id,
+                                        name: creator.name,
+                                      });
                                       setInviteModalOpen(true);
                                     }}
                                     data-testid={`action-table-invite-campaign-${creator.id}`}
@@ -665,9 +792,14 @@ export default function CreatorDiscoveryPage() {
               )}
 
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t" data-testid="pagination">
+                <div
+                  className="flex items-center justify-between mt-6 pt-4 border-t"
+                  data-testid="pagination"
+                >
                   <p className="text-sm text-muted-foreground">
-                    Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, filteredCreators.length)} de {filteredCreators.length} criadores
+                    Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1}-
+                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredCreators.length)} de{' '}
+                    {filteredCreators.length} criadores
                   </p>
                   <div className="flex items-center gap-1">
                     <Button
@@ -682,7 +814,7 @@ export default function CreatorDiscoveryPage() {
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                       <Button
                         key={page}
-                        variant={page === currentPage ? "default" : "outline"}
+                        variant={page === currentPage ? 'default' : 'outline'}
                         size="sm"
                         className="w-8 h-8 p-0"
                         onClick={() => handlePageChange(page)}
@@ -706,7 +838,7 @@ export default function CreatorDiscoveryPage() {
             </>
           )}
         </TabsContent>
-        
+
         <TabsContent value="discover" className="mt-6" data-testid="content-discover">
           <div className="flex gap-4 mb-6">
             <div className="relative flex-1 max-w-md">
@@ -720,8 +852,8 @@ export default function CreatorDiscoveryPage() {
                 data-testid="input-discovery-search"
               />
             </div>
-            <Button 
-              onClick={handleDiscoverySearch} 
+            <Button
+              onClick={handleDiscoverySearch}
               disabled={isSearching || !discoverySearch.trim()}
               data-testid="button-search-discovery"
             >
@@ -733,18 +865,19 @@ export default function CreatorDiscoveryPage() {
               Buscar
             </Button>
           </div>
-          
+
           <p className="text-sm text-muted-foreground mb-6">
-            Digite um nome de usuário do Instagram (sem @) para validar o perfil, ou uma hashtag (#) para descobrir criadores.
+            Digite um nome de usuário do Instagram (sem @) para validar o perfil, ou uma hashtag (#)
+            para descobrir criadores.
           </p>
-          
+
           {isSearching && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="ml-3 text-muted-foreground">Buscando perfil...</span>
             </div>
           )}
-          
+
           {discoveryResult && discoveryResult.exists && (
             <Card className="max-w-lg mb-8" data-testid="card-discovery-result">
               <CardHeader className="pb-2">
@@ -758,26 +891,27 @@ export default function CreatorDiscoveryPage() {
                       {discoveryResult.fullName || discoveryResult.username}
                     </h3>
                     <p className="text-muted-foreground flex items-center gap-1">
-                      <Instagram className="h-4 w-4" />
-                      @{discoveryResult.username}
+                      <Instagram className="h-4 w-4" />@{discoveryResult.username}
                       {discoveryResult.isVerified && (
                         <CheckCircle className="h-4 w-4 text-blue-500" />
                       )}
                     </p>
                     {discoveryResult.isPrivate && (
-                      <Badge variant="secondary" className="mt-1">Perfil Privado</Badge>
+                      <Badge variant="secondary" className="mt-1">
+                        Perfil Privado
+                      </Badge>
                     )}
                   </div>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="pb-2">
                 {discoveryResult.bio && (
                   <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                     {discoveryResult.bio}
                   </p>
                 )}
-                
+
                 <div className="flex items-center gap-6 text-sm">
                   <div>
                     <span className="font-semibold" data-testid="text-discovery-followers">
@@ -786,7 +920,9 @@ export default function CreatorDiscoveryPage() {
                     <span className="text-muted-foreground ml-1">seguidores</span>
                   </div>
                   <div>
-                    <span className="font-semibold">{formatFollowers(discoveryResult.following)}</span>
+                    <span className="font-semibold">
+                      {formatFollowers(discoveryResult.following)}
+                    </span>
                     <span className="text-muted-foreground ml-1">seguindo</span>
                   </div>
                   <div>
@@ -794,7 +930,7 @@ export default function CreatorDiscoveryPage() {
                     <span className="text-muted-foreground ml-1">posts</span>
                   </div>
                 </div>
-                
+
                 {discoveryResult.engagementRate && (
                   <div className="mt-3 flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-green-500" />
@@ -804,9 +940,9 @@ export default function CreatorDiscoveryPage() {
                   </div>
                 )}
               </CardContent>
-              
+
               <CardFooter className="pt-2">
-                <Button 
+                <Button
                   onClick={() => saveProfileMutation.mutate(discoveryResult)}
                   disabled={saveProfileMutation.isPending}
                   className="w-full"
@@ -822,29 +958,35 @@ export default function CreatorDiscoveryPage() {
               </CardFooter>
             </Card>
           )}
-          
+
           {discoveryResult && !discoveryResult.exists && (
             <div className="text-center py-12 text-muted-foreground" data-testid="empty-discovery">
               <Instagram className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Perfil não encontrado no Instagram.</p>
             </div>
           )}
-          
+
           <div className="mt-8">
             <h2 className="text-lg font-semibold mb-4">Perfis Salvos</h2>
-            
+
             {loadingSavedProfiles ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : savedProfiles.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground" data-testid="empty-saved-profiles">
+              <div
+                className="text-center py-8 text-muted-foreground"
+                data-testid="empty-saved-profiles"
+              >
                 <UserPlus className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhum perfil salvo ainda.</p>
                 <p className="text-sm">Busque criadores acima e salve seus perfis.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="grid-saved-profiles">
+              <div
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"
+                data-testid="grid-saved-profiles"
+              >
                 {savedProfiles.map((profile) => (
                   <div
                     key={profile.id}
@@ -868,7 +1010,9 @@ export default function CreatorDiscoveryPage() {
                       <p className="text-xs text-muted-foreground">@{profile.instagramHandle}</p>
                       <div className="flex items-center gap-1 mt-1.5">
                         <Users className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs font-medium">{formatFollowers(profile.followers)}</span>
+                        <span className="text-xs font-medium">
+                          {formatFollowers(profile.followers)}
+                        </span>
                       </div>
                       {profile.engagementRate && (
                         <p className="text-[11px] text-muted-foreground mt-1">

@@ -9,3 +9,5 @@ vite.config.ts.*
 .local/
 .config/
 uploads/
+.claude/plans/
+coverage/

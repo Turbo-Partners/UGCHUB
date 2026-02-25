@@ -1,14 +1,20 @@
 import { db } from '../db';
 import { users, companies, instagramProfiles } from '@shared/schema';
 import { eq, and, isNull, isNotNull, or, sql } from 'drizzle-orm';
-import apifyService, { 
-  ProfileScraperResult, 
+import apifyService, {
+  ProfileScraperResult,
   DetailedProfileResult,
   TikTokProfileResult,
-  YouTubeChannelResult 
+  YouTubeChannelResult,
 } from './apify';
 import { tryBusinessDiscoveryForProfile } from './business-discovery';
-import { getOrFetchProfilePic, downloadAndSaveToStorage, getPublicUrl } from './instagram-profile-pic';
+import {
+  getOrFetchProfilePic,
+  downloadAndSaveToStorage,
+  getPublicUrl,
+} from './instagram-profile-pic';
+import { storage } from '../storage';
+import { savePostThumbnail } from '../lib/image-storage';
 
 export interface EnrichmentResult {
   success: boolean;
@@ -106,11 +112,7 @@ export interface CompanyEnrichmentData {
   };
 }
 
-function calculateEngagementRate(
-  followers: number,
-  avgLikes: number,
-  avgComments: number
-): string {
+function calculateEngagementRate(followers: number, avgLikes: number, avgComments: number): string {
   if (followers === 0) return '0%';
   const engagement = ((avgLikes + avgComments) / followers) * 100;
   return `${engagement.toFixed(2)}%`;
@@ -174,44 +176,53 @@ function calculateEnrichmentScore(data: CreatorEnrichmentData | CompanyEnrichmen
  */
 export async function refreshCreatorProfileLight(
   creatorId: number,
-  options: { forceRefresh?: boolean } = {}
+  options: { forceRefresh?: boolean } = {},
 ): Promise<{ refreshed: boolean; error?: string }> {
   const { forceRefresh = false } = options;
-  
+
   const [creator] = await db.select().from(users).where(eq(users.id, creatorId)).limit(1);
   if (!creator) {
     return { refreshed: false, error: 'Creator not found' };
   }
-  
+
   // Only refresh if data is older than 7 days (or force)
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const lastUpdated = creator.instagramLastUpdated ? new Date(creator.instagramLastUpdated).getTime() : 0;
-  
+  const lastUpdated = creator.instagramLastUpdated
+    ? new Date(creator.instagramLastUpdated).getTime()
+    : 0;
+
   if (!forceRefresh && lastUpdated > sevenDaysAgo) {
     return { refreshed: false }; // Data is still fresh
   }
-  
+
   // Check if creator has Instagram username
   if (!creator.instagram) {
     return { refreshed: false, error: 'No Instagram username' };
   }
-  
-  const username = creator.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '').split('/')[0];
+
+  const username = creator.instagram
+    .replace('@', '')
+    .replace('https://instagram.com/', '')
+    .replace('https://www.instagram.com/', '')
+    .split('/')[0];
   if (!username) {
     return { refreshed: false, error: 'Invalid Instagram username' };
   }
-  
+
   try {
     // Layer 2: Try Business Discovery API first ($0 cost)
     const bizData = await tryBusinessDiscoveryForProfile(username);
     if (bizData?.exists) {
-      console.log(`[refreshCreatorProfileLight] Using Business Discovery for @${username} - $0 cost`);
+      console.log(
+        `[refreshCreatorProfileLight] Using Business Discovery for @${username} - $0 cost`,
+      );
       let profilePicUrl: string | null = null;
       if (bizData.profilePicUrl) {
         const storagePath = await downloadAndSaveToStorage(username, bizData.profilePicUrl);
         profilePicUrl = storagePath ? getPublicUrl(storagePath) : null;
       }
-      await db.update(users)
+      await db
+        .update(users)
         .set({
           instagramFollowers: bizData.followers || null,
           instagramFollowing: bizData.following || null,
@@ -226,20 +237,23 @@ export async function refreshCreatorProfileLight(
     }
 
     // Layer 3: Apify (PAID - last resort, only on explicit user action)
-    console.log(`[refreshCreatorProfileLight] Business Discovery failed, falling back to Apify for @${username}`);
+    console.log(
+      `[refreshCreatorProfileLight] Business Discovery failed, falling back to Apify for @${username}`,
+    );
     const profile = await apifyService.queueProfileScrape(username, { triggeredBy: 'on_demand' });
-    
+
     if (!profile) {
       return { refreshed: false, error: 'Profile not found' };
     }
-    
+
     let profilePicUrl: string | null = null;
     if (profile.profilePicUrl) {
       const storagePath = await downloadAndSaveToStorage(username, profile.profilePicUrl);
       profilePicUrl = storagePath ? getPublicUrl(storagePath) : null;
     }
-    
-    await db.update(users)
+
+    await db
+      .update(users)
       .set({
         instagramFollowers: profile.followersCount,
         instagramFollowing: profile.followsCount,
@@ -250,7 +264,7 @@ export async function refreshCreatorProfileLight(
         instagramLastUpdated: new Date(),
       })
       .where(eq(users.id, creatorId));
-    
+
     return { refreshed: true };
   } catch (error) {
     console.error(`[refreshCreatorProfileLight] Error for creator ${creatorId}:`, error);
@@ -265,7 +279,7 @@ export async function enrichCreatorProfile(
     includeTikTok?: boolean;
     includeYouTube?: boolean;
     forceRefresh?: boolean;
-  } = {}
+  } = {},
 ): Promise<EnrichmentResult> {
   const {
     includeInstagram = true,
@@ -280,18 +294,29 @@ export async function enrichCreatorProfile(
 
   const [creator] = await db.select().from(users).where(eq(users.id, creatorId)).limit(1);
   if (!creator) {
-    return { success: false, enrichedFields: [], errors: ['Creator not found'], costEstimate: 0, source: 'apify' };
+    return {
+      success: false,
+      enrichedFields: [],
+      errors: ['Creator not found'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
   const enrichmentData: CreatorEnrichmentData = {};
   const updateData: any = {};
 
   if (includeInstagram && creator.instagram) {
-    const username = creator.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '').split('/')[0];
-    
-    const shouldFetch = forceRefresh || 
-      !creator.instagramLastUpdated || 
-      (Date.now() - new Date(creator.instagramLastUpdated).getTime()) > 7 * 24 * 60 * 60 * 1000;
+    const username = creator.instagram
+      .replace('@', '')
+      .replace('https://instagram.com/', '')
+      .replace('https://www.instagram.com/', '')
+      .split('/')[0];
+
+    const shouldFetch =
+      forceRefresh ||
+      !creator.instagramLastUpdated ||
+      Date.now() - new Date(creator.instagramLastUpdated).getTime() > 7 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch && username) {
       try {
@@ -313,12 +338,14 @@ export async function enrichCreatorProfile(
           };
         } else {
           // Layer 3: Apify (PAID - last resort, 1 combined call for profile+posts)
-          console.log(`[enrichCreatorProfile] Business Discovery failed, using Apify for @${username} (1 combined call)`);
+          console.log(
+            `[enrichCreatorProfile] Business Discovery failed, using Apify for @${username} (1 combined call)`,
+          );
           apifyPosts = await apifyService.scrapePosts(
             [`https://www.instagram.com/${username}/`],
             12,
             { addParentData: true, skipCacheCheck: true },
-            { triggeredBy: 'on_demand' }
+            { triggeredBy: 'on_demand' },
           );
           if (apifyPosts.length > 0) {
             const firstPost = apifyPosts[0] as any;
@@ -344,7 +371,9 @@ export async function enrichCreatorProfile(
             posts = bizData.recentMedia.map((m: any) => ({
               likesCount: m.likes || m.like_count || 0,
               commentsCount: m.comments || m.comments_count || 0,
-              hashtags: ((m.caption || '').match(/#(\w+)/g) || []).map((t: string) => t.replace('#', '')),
+              hashtags: ((m.caption || '').match(/#(\w+)/g) || []).map((t: string) =>
+                t.replace('#', ''),
+              ),
               id: m.id,
               shortCode: '',
               displayUrl: m.imageUrl || m.media_url || '',
@@ -355,7 +384,9 @@ export async function enrichCreatorProfile(
             posts = apifyPosts.map((p: any) => ({
               likesCount: p.likesCount || p.likeCount || p.likes || 0,
               commentsCount: p.commentsCount || p.commentCount || p.comments || 0,
-              hashtags: p.hashtags || ((p.caption || '').match(/#(\w+)/g) || []).map((t: string) => t.replace('#', '')),
+              hashtags:
+                p.hashtags ||
+                ((p.caption || '').match(/#(\w+)/g) || []).map((t: string) => t.replace('#', '')),
               id: p.id || p.shortCode || '',
               shortCode: p.shortCode || '',
               displayUrl: p.displayUrl || p.imageUrl || '',
@@ -364,13 +395,24 @@ export async function enrichCreatorProfile(
             }));
           }
 
-          const avgLikes = posts.length > 0 ? posts.reduce((sum: number, p: any) => sum + (p.likesCount || 0), 0) / posts.length : 0;
-          const avgComments = posts.length > 0 ? posts.reduce((sum: number, p: any) => sum + (p.commentsCount || 0), 0) / posts.length : 0;
-          const engagementRate = calculateEngagementRate(profile.followersCount || 0, avgLikes, avgComments);
+          const avgLikes =
+            posts.length > 0
+              ? posts.reduce((sum: number, p: any) => sum + (p.likesCount || 0), 0) / posts.length
+              : 0;
+          const avgComments =
+            posts.length > 0
+              ? posts.reduce((sum: number, p: any) => sum + (p.commentsCount || 0), 0) /
+                posts.length
+              : 0;
+          const engagementRate = calculateEngagementRate(
+            profile.followersCount || 0,
+            avgLikes,
+            avgComments,
+          );
 
-          const allHashtags = posts.flatMap(p => p.hashtags || []);
+          const allHashtags = posts.flatMap((p) => p.hashtags || []);
           const topHashtags = Array.from(new Set(allHashtags)).slice(0, 10);
-          const topPosts = posts.slice(0, 5).map(p => ({
+          const topPosts = posts.slice(0, 5).map((p) => ({
             id: p.id,
             url: `https://www.instagram.com/p/${p.shortCode}/`,
             imageUrl: p.displayUrl || '',
@@ -380,10 +422,16 @@ export async function enrichCreatorProfile(
             timestamp: p.timestamp || '',
           }));
 
-          let savedProfilePic = profile.profilePicUrl || '';
+          let savedProfilePic: string | null = null;
           if (profile.profilePicUrl) {
             const storagePath = await downloadAndSaveToStorage(username, profile.profilePicUrl);
-            if (storagePath) savedProfilePic = getPublicUrl(storagePath);
+            if (storagePath) {
+              savedProfilePic = getPublicUrl(storagePath);
+            } else {
+              console.warn(
+                `[enrichCreatorProfile] Profile pic download failed for @${username}, keeping current value`,
+              );
+            }
           }
           enrichmentData.instagram = {
             followers: profile.followersCount || 0,
@@ -392,7 +440,7 @@ export async function enrichCreatorProfile(
             engagementRate,
             verified: profile.isVerified || false,
             bio: profile.biography || '',
-            profilePic: savedProfilePic,
+            profilePic: savedProfilePic || '',
             topPosts,
             topHashtags,
           };
@@ -403,13 +451,73 @@ export async function enrichCreatorProfile(
           updateData.instagramEngagementRate = engagementRate;
           updateData.instagramVerified = profile.isVerified;
           updateData.instagramBio = profile.biography;
-          updateData.instagramProfilePic = savedProfilePic;
+          // Only save pic if it's a GCS URL. If download failed, don't overwrite with CDN URL
+          if (savedProfilePic) {
+            updateData.instagramProfilePic = savedProfilePic;
+          }
           updateData.instagramTopPosts = topPosts;
           updateData.instagramTopHashtags = topHashtags;
           updateData.instagramLastUpdated = new Date();
 
           enrichedFields.push('instagram');
-          totalCost += 0.003 + (posts.length * 0.0027);
+          totalCost += 0.003 + posts.length * 0.0027;
+
+          // Save BD posts to creatorPosts table (free data, has thumbnails)
+          if (bizData?.recentMedia?.length) {
+            for (const media of bizData.recentMedia) {
+              try {
+                const mediaUrl = media.media_url || media.thumbnail_url || '';
+                const postIdStr = String(media.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+                if (!postIdStr || !media.permalink) continue;
+
+                const savedUrl = mediaUrl
+                  ? await savePostThumbnail(mediaUrl, 'instagram', postIdStr)
+                  : null;
+                const mediaType = (media.media_type || '').toUpperCase();
+                const postType =
+                  mediaType === 'VIDEO'
+                    ? 'reel'
+                    : mediaType === 'CAROUSEL_ALBUM'
+                      ? 'carousel'
+                      : 'image';
+
+                await storage.upsertCreatorPost({
+                  userId: creatorId,
+                  platform: 'instagram',
+                  postId: postIdStr,
+                  postUrl: media.permalink,
+                  thumbnailUrl: savedUrl || mediaUrl || null,
+                  caption: (media.caption || '').substring(0, 2000),
+                  likes: media.like_count || 0,
+                  comments: media.comments_count || 0,
+                  views: null,
+                  shares: null,
+                  saves: null,
+                  engagementRate:
+                    profile.followersCount > 0
+                      ? (
+                          (((media.like_count || 0) + (media.comments_count || 0)) /
+                            profile.followersCount) *
+                          100
+                        ).toFixed(2) + '%'
+                      : '0%',
+                  hashtags: ((media.caption || '').match(/#(\w+)/g) || []).map((t: string) =>
+                    t.replace('#', ''),
+                  ),
+                  mentions: ((media.caption || '').match(/@(\w+)/g) || []).map((t: string) =>
+                    t.replace('@', ''),
+                  ),
+                  postedAt: media.timestamp ? new Date(media.timestamp) : new Date(),
+                  postType,
+                });
+              } catch (postErr) {
+                console.error(`[enrichCreatorProfile] Error saving BD post:`, postErr);
+              }
+            }
+            console.log(
+              `[enrichCreatorProfile] Saved ${bizData.recentMedia.length} BD posts to creatorPosts for user ${creatorId}`,
+            );
+          }
         }
       } catch (error: any) {
         errors.push(`Instagram: ${error.message}`);
@@ -418,18 +526,23 @@ export async function enrichCreatorProfile(
   }
 
   if (includeTikTok && creator.tiktok) {
-    const username = creator.tiktok.replace('@', '').replace('https://tiktok.com/', '').replace('https://www.tiktok.com/', '').split('/')[0];
-    
-    const shouldFetch = forceRefresh || 
-      !creator.tiktokLastUpdated || 
-      (Date.now() - new Date(creator.tiktokLastUpdated).getTime()) > 7 * 24 * 60 * 60 * 1000;
+    const username = creator.tiktok
+      .replace('@', '')
+      .replace('https://tiktok.com/', '')
+      .replace('https://www.tiktok.com/', '')
+      .split('/')[0];
+
+    const shouldFetch =
+      forceRefresh ||
+      !creator.tiktokLastUpdated ||
+      Date.now() - new Date(creator.tiktokLastUpdated).getTime() > 7 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch && username) {
       try {
         const videoResults = await apifyService.scrapeTikTokProfiles(
           [username],
           { resultsPerProfile: 5 },
-          { triggeredBy: 'on_demand' }
+          { triggeredBy: 'on_demand' },
         );
 
         if (videoResults.length > 0) {
@@ -442,13 +555,18 @@ export async function enrichCreatorProfile(
           const tiktokBio = author?.signature || '';
           const tiktokProfilePic = author?.avatarLarger || '';
 
-          const avgLikes = videoResults.length > 0 ?
-            videoResults.reduce((sum: number, v: any) => sum + (v.stats?.diggCount || 0), 0) / videoResults.length : 0;
+          const avgLikes =
+            videoResults.length > 0
+              ? videoResults.reduce((sum: number, v: any) => sum + (v.stats?.diggCount || 0), 0) /
+                videoResults.length
+              : 0;
           const engagementRate = calculateEngagementRate(tiktokFollowers, avgLikes, 0);
 
           const topVideos = videoResults.slice(0, 5).map((v: any) => ({
             id: v.id,
-            url: v.author?.uniqueId ? `https://www.tiktok.com/@${v.author.uniqueId}/video/${v.id}` : '',
+            url: v.author?.uniqueId
+              ? `https://www.tiktok.com/@${v.author.uniqueId}/video/${v.id}`
+              : '',
             thumbnailUrl: v.video?.cover || '',
             description: (v.desc || '').slice(0, 200),
             plays: v.stats?.playCount || 0,
@@ -482,7 +600,7 @@ export async function enrichCreatorProfile(
           updateData.tiktokLastUpdated = new Date();
 
           enrichedFields.push('tiktok');
-          totalCost += 0.03 + (videoResults.length * 0.003);
+          totalCost += 0.03 + videoResults.length * 0.003;
         }
       } catch (error: any) {
         errors.push(`TikTok: ${error.message}`);
@@ -491,18 +609,21 @@ export async function enrichCreatorProfile(
   }
 
   if (includeYouTube && creator.youtube) {
-    const channelUrl = creator.youtube.startsWith('http') ? creator.youtube : `https://youtube.com/${creator.youtube}`;
-    
-    const shouldFetch = forceRefresh || 
-      !creator.youtubeLastUpdated || 
-      (Date.now() - new Date(creator.youtubeLastUpdated).getTime()) > 7 * 24 * 60 * 60 * 1000;
+    const channelUrl = creator.youtube.startsWith('http')
+      ? creator.youtube
+      : `https://youtube.com/${creator.youtube}`;
+
+    const shouldFetch =
+      forceRefresh ||
+      !creator.youtubeLastUpdated ||
+      Date.now() - new Date(creator.youtubeLastUpdated).getTime() > 7 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch) {
       try {
         const channels = await apifyService.scrapeYouTubeChannelInfo(
           [channelUrl],
           { includeRecentVideos: true, maxRecentVideos: 5 },
-          { triggeredBy: 'on_demand' }
+          { triggeredBy: 'on_demand' },
         );
 
         if (channels.length > 0) {
@@ -573,7 +694,7 @@ export async function enrichCompanyProfile(
     includeCnpj?: boolean;
     includeWebsite?: boolean;
     forceRefresh?: boolean;
-  } = {}
+  } = {},
 ): Promise<EnrichmentResult> {
   const {
     includeInstagram = true,
@@ -589,18 +710,29 @@ export async function enrichCompanyProfile(
 
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
   if (!company) {
-    return { success: false, enrichedFields: [], errors: ['Company not found'], costEstimate: 0, source: 'apify' };
+    return {
+      success: false,
+      enrichedFields: [],
+      errors: ['Company not found'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
   const enrichmentData: CompanyEnrichmentData = {};
   const updateData: any = {};
 
   if (includeInstagram && company.instagram) {
-    const username = company.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '').split('/')[0];
-    
-    const shouldFetch = forceRefresh || 
-      !company.instagramLastUpdated || 
-      (Date.now() - new Date(company.instagramLastUpdated).getTime()) > 30 * 24 * 60 * 60 * 1000;
+    const username = company.instagram
+      .replace('@', '')
+      .replace('https://instagram.com/', '')
+      .replace('https://www.instagram.com/', '')
+      .split('/')[0];
+
+    const shouldFetch =
+      forceRefresh ||
+      !company.instagramLastUpdated ||
+      Date.now() - new Date(company.instagramLastUpdated).getTime() > 30 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch && username) {
       try {
@@ -620,8 +752,12 @@ export async function enrichCompanyProfile(
           };
         } else {
           // Layer 3: Apify (PAID - last resort)
-          console.log(`[enrichCompanyProfile] Business Discovery failed, using Apify for @${username}`);
-          const profileResult = await apifyService.queueProfileScrape(username, { triggeredBy: 'on_demand' });
+          console.log(
+            `[enrichCompanyProfile] Business Discovery failed, using Apify for @${username}`,
+          );
+          const profileResult = await apifyService.queueProfileScrape(username, {
+            triggeredBy: 'on_demand',
+          });
           if (profileResult) {
             profileData = profileResult;
             totalCost += 0.0026;
@@ -659,18 +795,23 @@ export async function enrichCompanyProfile(
   }
 
   if (includeTikTok && company.tiktok) {
-    const username = company.tiktok.replace('@', '').replace('https://tiktok.com/', '').replace('https://www.tiktok.com/', '').split('/')[0];
-    
-    const shouldFetch = forceRefresh || 
-      !company.tiktokLastUpdated || 
-      (Date.now() - new Date(company.tiktokLastUpdated).getTime()) > 30 * 24 * 60 * 60 * 1000;
+    const username = company.tiktok
+      .replace('@', '')
+      .replace('https://tiktok.com/', '')
+      .replace('https://www.tiktok.com/', '')
+      .split('/')[0];
+
+    const shouldFetch =
+      forceRefresh ||
+      !company.tiktokLastUpdated ||
+      Date.now() - new Date(company.tiktokLastUpdated).getTime() > 30 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch && username) {
       try {
         const videoResults = await apifyService.scrapeTikTokProfiles(
           [username],
           { resultsPerProfile: 3 },
-          { triggeredBy: 'on_demand' }
+          { triggeredBy: 'on_demand' },
         );
 
         if (videoResults.length > 0) {
@@ -702,10 +843,11 @@ export async function enrichCompanyProfile(
 
   if (includeCnpj && company.cnpj) {
     const cleanCnpj = company.cnpj.replace(/\D/g, '');
-    
-    const shouldFetch = forceRefresh || 
-      !company.cnpjLastUpdated || 
-      (Date.now() - new Date(company.cnpjLastUpdated).getTime()) > 30 * 24 * 60 * 60 * 1000;
+
+    const shouldFetch =
+      forceRefresh ||
+      !company.cnpjLastUpdated ||
+      Date.now() - new Date(company.cnpjLastUpdated).getTime() > 30 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch && cleanCnpj.length === 14) {
       try {
@@ -743,17 +885,16 @@ export async function enrichCompanyProfile(
   }
 
   if (includeWebsite && company.website) {
-    const shouldFetch = forceRefresh || 
-      !company.websiteLastUpdated || 
-      (Date.now() - new Date(company.websiteLastUpdated).getTime()) > 30 * 24 * 60 * 60 * 1000;
+    const shouldFetch =
+      forceRefresh ||
+      !company.websiteLastUpdated ||
+      Date.now() - new Date(company.websiteLastUpdated).getTime() > 30 * 24 * 60 * 60 * 1000;
 
     if (shouldFetch) {
       try {
-        const results = await apifyService.crawlWebsiteContent(
-          [company.website],
-          10,
-          { triggeredBy: 'on_demand' }
-        );
+        const results = await apifyService.crawlWebsiteContent([company.website], 10, {
+          triggeredBy: 'on_demand',
+        });
 
         if (results.length > 0) {
           const mainPage = results[0];
@@ -762,7 +903,12 @@ export async function enrichCompanyProfile(
 
           const aboutPage = results.find((p: any) => {
             const url = (p.url || '').toLowerCase();
-            return url.includes('/sobre') || url.includes('/about') || url.includes('/quem-somos') || url.includes('/a-empresa');
+            return (
+              url.includes('/sobre') ||
+              url.includes('/about') ||
+              url.includes('/quem-somos') ||
+              url.includes('/a-empresa')
+            );
           });
 
           const pages = results.map((p: any) => ({
@@ -775,8 +921,9 @@ export async function enrichCompanyProfile(
           const allLinks = results.flatMap((p: any) => {
             if (!p.text && !p.html) return [];
             const links: string[] = [];
-            const urlRegex = /https?:\/\/(?:www\.)?(instagram|facebook|tiktok|youtube|twitter|linkedin|x)\.com\/[^\s"'<>)]+/gi;
-            const fullText = (p.html || p.text || '');
+            const urlRegex =
+              /https?:\/\/(?:www\.)?(instagram|facebook|tiktok|youtube|twitter|linkedin|x)\.com\/[^\s"'<>)]+/gi;
+            const fullText = p.html || p.text || '';
             let match;
             while ((match = urlRegex.exec(fullText)) !== null) {
               links.push(match[0]);
@@ -788,16 +935,18 @@ export async function enrichCompanyProfile(
             else if (link.includes('facebook.com')) socialLinks.facebook = link;
             else if (link.includes('tiktok.com')) socialLinks.tiktok = link;
             else if (link.includes('youtube.com')) socialLinks.youtube = link;
-            else if (link.includes('twitter.com') || link.includes('x.com')) socialLinks.twitter = link;
+            else if (link.includes('twitter.com') || link.includes('x.com'))
+              socialLinks.twitter = link;
             else if (link.includes('linkedin.com')) socialLinks.linkedin = link;
           }
 
           const allKeywords: string[] = [];
           for (const page of results) {
             if (page.metadata?.keywords) {
-              const kw = typeof page.metadata.keywords === 'string'
-                ? page.metadata.keywords.split(',').map((k: string) => k.trim())
-                : page.metadata.keywords;
+              const kw =
+                typeof page.metadata.keywords === 'string'
+                  ? page.metadata.keywords.split(',').map((k: string) => k.trim())
+                  : page.metadata.keywords;
               allKeywords.push(...kw);
             }
           }
@@ -868,7 +1017,7 @@ export async function enrichCompanyProfile(
 
 export async function enrichCompanyEcommerce(
   companyId: number,
-  options: { forceRefresh?: boolean } = {}
+  options: { forceRefresh?: boolean } = {},
 ): Promise<EnrichmentResult> {
   const { forceRefresh = false } = options;
   const enrichedFields: string[] = [];
@@ -877,23 +1026,44 @@ export async function enrichCompanyEcommerce(
 
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
   if (!company) {
-    return { success: false, enrichedFields: [], errors: ['Company not found'], costEstimate: 0, source: 'apify' };
+    return {
+      success: false,
+      enrichedFields: [],
+      errors: ['Company not found'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
   if (!company.website) {
-    return { success: false, enrichedFields: [], errors: ['Company has no website configured'], costEstimate: 0, source: 'apify' };
+    return {
+      success: false,
+      enrichedFields: [],
+      errors: ['Company has no website configured'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
-  const shouldFetch = forceRefresh ||
+  const shouldFetch =
+    forceRefresh ||
     !company.ecommerceLastUpdated ||
-    (Date.now() - new Date(company.ecommerceLastUpdated).getTime()) > 30 * 24 * 60 * 60 * 1000;
+    Date.now() - new Date(company.ecommerceLastUpdated).getTime() > 30 * 24 * 60 * 60 * 1000;
 
   if (!shouldFetch) {
-    return { success: true, enrichedFields: [], errors: ['Data is still fresh (< 30 days)'], costEstimate: 0, source: 'apify' };
+    return {
+      success: true,
+      enrichedFields: [],
+      errors: ['Data is still fresh (< 30 days)'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
   try {
-    console.log(`[Enrichment] Starting e-commerce scrape for company ${companyId}: ${company.website}`);
+    console.log(
+      `[Enrichment] Starting e-commerce scrape for company ${companyId}: ${company.website}`,
+    );
 
     const { items } = await apifyService.runActorPublic(
       'apify/e-commerce-scraping-tool',
@@ -902,27 +1072,32 @@ export async function enrichCompanyEcommerce(
         maxItems: 50,
         proxyConfiguration: { useApifyProxy: true },
       },
-      { triggeredBy: 'on_demand' }
+      { triggeredBy: 'on_demand' },
     );
 
     if (items.length > 0) {
-      const products = items.map((item: any) => ({
-        name: item.name || item.title || '',
-        price: item.price?.toString() || item.currentPrice?.toString() || '',
-        currency: item.currency || 'BRL',
-        imageUrl: item.image || item.imageUrl || item.thumbnailUrl || '',
-        url: item.url || item.productUrl || '',
-        category: item.category || item.breadcrumb || '',
-        description: (item.description || '').slice(0, 300),
-      })).filter((p: any) => p.name);
+      const products = items
+        .map((item: any) => ({
+          name: item.name || item.title || '',
+          price: item.price?.toString() || item.currentPrice?.toString() || '',
+          currency: item.currency || 'BRL',
+          imageUrl: item.image || item.imageUrl || item.thumbnailUrl || '',
+          url: item.url || item.productUrl || '',
+          category: item.category || item.breadcrumb || '',
+          description: (item.description || '').slice(0, 300),
+        }))
+        .filter((p: any) => p.name);
 
       const categories = Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)));
 
       let platform = '';
       const siteUrl = company.website.toLowerCase();
-      if (siteUrl.includes('shopify') || items[0]?.source?.includes('shopify')) platform = 'Shopify';
-      else if (siteUrl.includes('woocommerce') || siteUrl.includes('wordpress')) platform = 'WooCommerce';
-      else if (siteUrl.includes('nuvemshop') || siteUrl.includes('lojaintegrada')) platform = 'NuvemShop';
+      if (siteUrl.includes('shopify') || items[0]?.source?.includes('shopify'))
+        platform = 'Shopify';
+      else if (siteUrl.includes('woocommerce') || siteUrl.includes('wordpress'))
+        platform = 'WooCommerce';
+      else if (siteUrl.includes('nuvemshop') || siteUrl.includes('lojaintegrada'))
+        platform = 'NuvemShop';
       else if (siteUrl.includes('tray') || siteUrl.includes('traycorp')) platform = 'Tray';
       else if (siteUrl.includes('vtex')) platform = 'VTEX';
       else if (siteUrl.includes('magento')) platform = 'Magento';
@@ -967,27 +1142,25 @@ export interface BatchEnrichResult {
 }
 
 export async function batchEnrichMissingProfilePics(
-  limit: number = 1000
+  limit: number = 1000,
 ): Promise<BatchEnrichResult> {
-  const creatorsWithInstagram = await db.select({
-    id: users.id,
-    name: users.name,
-    instagram: users.instagram,
-    avatar: users.avatar,
-    instagramProfilePic: users.instagramProfilePic,
-    instagramFollowers: users.instagramFollowers,
-    instagramLastUpdated: users.instagramLastUpdated,
-  })
+  const creatorsWithInstagram = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      instagram: users.instagram,
+      avatar: users.avatar,
+      instagramProfilePic: users.instagramProfilePic,
+      instagramFollowers: users.instagramFollowers,
+      instagramLastUpdated: users.instagramLastUpdated,
+    })
     .from(users)
     .where(
       and(
         eq(users.role, 'creator'),
         isNotNull(users.instagram),
-        or(
-          isNull(users.instagramProfilePic),
-          eq(users.instagramProfilePic, '')
-        )
-      )
+        or(isNull(users.instagramProfilePic), eq(users.instagramProfilePic, '')),
+      ),
     )
     .limit(limit);
 
@@ -1010,28 +1183,36 @@ export async function batchEnrichMissingProfilePics(
       continue;
     }
   }
-  const remaining = creatorsWithInstagram.filter(c => {
+  const remaining = creatorsWithInstagram.filter((c) => {
     if (c.avatar && c.avatar.startsWith('/api/storage/')) return false;
-    if (c.instagramLastUpdated) return false;
+    // Only skip if already has a GCS-backed profile pic (not CDN URL)
+    if (c.instagramProfilePic && c.instagramProfilePic.startsWith('/api/storage/')) return false;
     return true;
   });
   if (remaining.length === 0) {
     return { total: creatorsWithInstagram.length, enriched, skipped, errors, costEstimate: 0 };
   }
 
-  const usernames = remaining.map(c => {
-    const username = (c.instagram || '').replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '').split('/')[0].toLowerCase();
-    return { userId: c.id, username, hasFollowers: !!c.instagramFollowers };
-  }).filter(u => u.username);
+  const usernames = remaining
+    .map((c) => {
+      const username = (c.instagram || '')
+        .replace('@', '')
+        .replace('https://instagram.com/', '')
+        .replace('https://www.instagram.com/', '')
+        .split('/')[0]
+        .toLowerCase();
+      return { userId: c.id, username, hasFollowers: !!c.instagramFollowers };
+    })
+    .filter((u) => u.username);
 
   const batchSize = 50;
   for (let i = 0; i < usernames.length; i += batchSize) {
     const batch = usernames.slice(i, i + batchSize);
-    
+
     const promises = batch.map(async ({ userId, username, hasFollowers }) => {
       try {
         const picResult = await getOrFetchProfilePic(username);
-        
+
         const updateData: any = {};
         if (picResult.publicUrl) {
           updateData.instagramProfilePic = picResult.publicUrl;
@@ -1052,12 +1233,15 @@ export async function batchEnrichMissingProfilePics(
             updateData.instagramLastUpdated = new Date();
             totalCost += 0;
           } else {
-            const profile = await apifyService.queueProfileScrape(username, { triggeredBy: 'on_demand' });
+            const profile = await apifyService.queueProfileScrape(username, {
+              triggeredBy: 'on_demand',
+            });
             if (profile) {
               if (profile.followersCount) updateData.instagramFollowers = profile.followersCount;
               if (profile.followsCount) updateData.instagramFollowing = profile.followsCount;
               if (profile.postsCount) updateData.instagramPosts = profile.postsCount;
-              if (profile.isVerified !== undefined) updateData.instagramVerified = profile.isVerified;
+              if (profile.isVerified !== undefined)
+                updateData.instagramVerified = profile.isVerified;
               if (profile.biography) updateData.instagramBio = profile.biography;
               if (profile.profilePicUrl && !updateData.instagramProfilePic) {
                 const storagePath = await downloadAndSaveToStorage(username, profile.profilePicUrl);
@@ -1068,7 +1252,9 @@ export async function batchEnrichMissingProfilePics(
             }
           }
         } else if (!updateData.instagramProfilePic) {
-          const profile = await apifyService.queueProfileScrape(username, { triggeredBy: 'on_demand' });
+          const profile = await apifyService.queueProfileScrape(username, {
+            triggeredBy: 'on_demand',
+          });
           if (profile?.profilePicUrl) {
             const storagePath = await downloadAndSaveToStorage(username, profile.profilePicUrl);
             if (storagePath) updateData.instagramProfilePic = getPublicUrl(storagePath);
@@ -1090,9 +1276,9 @@ export async function batchEnrichMissingProfilePics(
     });
 
     await Promise.all(promises);
-    
+
     if (i + batchSize < usernames.length) {
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
 
@@ -1105,26 +1291,22 @@ export async function batchEnrichMissingProfilePics(
   };
 }
 
-export async function batchEnrichMissingData(
-  limit: number = 1000
-): Promise<BatchEnrichResult> {
-  const creatorsNeedingData = await db.select({
-    id: users.id,
-    name: users.name,
-    instagram: users.instagram,
-    instagramFollowers: users.instagramFollowers,
-    instagramLastUpdated: users.instagramLastUpdated,
-  })
+export async function batchEnrichMissingData(limit: number = 1000): Promise<BatchEnrichResult> {
+  const creatorsNeedingData = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      instagram: users.instagram,
+      instagramFollowers: users.instagramFollowers,
+      instagramLastUpdated: users.instagramLastUpdated,
+    })
     .from(users)
     .where(
       and(
         eq(users.role, 'creator'),
         isNotNull(users.instagram),
-        or(
-          isNull(users.instagramFollowers),
-          isNull(users.instagramLastUpdated)
-        )
-      )
+        or(isNull(users.instagramFollowers), isNull(users.instagramLastUpdated)),
+      ),
     )
     .limit(limit);
 
@@ -1139,10 +1321,17 @@ export async function batchEnrichMissingData(
   const errors: string[] = [];
   let totalCost = 0;
 
-  const usernames = creatorsNeedingData.map(c => {
-    const username = (c.instagram || '').replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '').split('/')[0].toLowerCase();
-    return { userId: c.id, username };
-  }).filter(u => u.username);
+  const usernames = creatorsNeedingData
+    .map((c) => {
+      const username = (c.instagram || '')
+        .replace('@', '')
+        .replace('https://instagram.com/', '')
+        .replace('https://www.instagram.com/', '')
+        .split('/')[0]
+        .toLowerCase();
+      return { userId: c.id, username };
+    })
+    .filter((u) => u.username);
 
   const batchSize = 50;
   for (let i = 0; i < usernames.length; i += batchSize) {
@@ -1165,7 +1354,9 @@ export async function batchEnrichMissingData(
           }
           updateData.instagramLastUpdated = new Date();
         } else {
-          const profile = await apifyService.queueProfileScrape(username, { triggeredBy: 'on_demand' });
+          const profile = await apifyService.queueProfileScrape(username, {
+            triggeredBy: 'on_demand',
+          });
           if (profile) {
             if (profile.followersCount) updateData.instagramFollowers = profile.followersCount;
             if (profile.followsCount) updateData.instagramFollowing = profile.followsCount;
@@ -1194,7 +1385,7 @@ export async function batchEnrichMissingData(
 
     await Promise.all(promises);
     if (i + batchSize < usernames.length) {
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
 
@@ -1209,7 +1400,7 @@ export async function batchEnrichMissingData(
 
 export async function deepEnrichCreator(
   creatorId: number,
-  options: { forceRefresh?: boolean } = {}
+  options: { forceRefresh?: boolean } = {},
 ): Promise<EnrichmentResult> {
   const { forceRefresh = false } = options;
   const enrichedFields: string[] = [];
@@ -1218,24 +1409,55 @@ export async function deepEnrichCreator(
 
   const [creator] = await db.select().from(users).where(eq(users.id, creatorId)).limit(1);
   if (!creator) {
-    return { success: false, enrichedFields: [], errors: ['Creator not found'], costEstimate: 0, source: 'apify' };
+    return {
+      success: false,
+      enrichedFields: [],
+      errors: ['Creator not found'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
   if (!creator.instagram) {
-    return { success: false, enrichedFields: [], errors: ['No Instagram username'], costEstimate: 0, source: 'apify' };
+    return {
+      success: false,
+      enrichedFields: [],
+      errors: ['No Instagram username'],
+      costEstimate: 0,
+      source: 'apify',
+    };
   }
 
-  const username = creator.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '').split('/')[0];
+  const username = creator.instagram
+    .replace('@', '')
+    .replace('https://instagram.com/', '')
+    .replace('https://www.instagram.com/', '')
+    .split('/')[0];
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const lastUpdated = creator.instagramLastUpdated ? new Date(creator.instagramLastUpdated).getTime() : 0;
-  if (!forceRefresh && lastUpdated > sevenDaysAgo && creator.instagramFollowers && creator.instagramProfilePic) {
-    return { success: true, enrichedFields: [], errors: ['Data still fresh (< 7 days)'], costEstimate: 0, source: 'cached' };
+  const lastUpdated = creator.instagramLastUpdated
+    ? new Date(creator.instagramLastUpdated).getTime()
+    : 0;
+  if (
+    !forceRefresh &&
+    lastUpdated > sevenDaysAgo &&
+    creator.instagramFollowers &&
+    creator.instagramProfilePic
+  ) {
+    return {
+      success: true,
+      enrichedFields: [],
+      errors: ['Data still fresh (< 7 days)'],
+      costEstimate: 0,
+      source: 'cached',
+    };
   }
 
   try {
     console.log(`[DeepEnrich] Starting detailed scrape for @${username} (user ${creatorId})`);
-    const detailedProfiles = await apifyService.scrapeProfilesDetailed([username], { triggeredBy: 'on_demand' });
+    const detailedProfiles = await apifyService.scrapeProfilesDetailed([username], {
+      triggeredBy: 'on_demand',
+    });
 
     if (detailedProfiles.length > 0) {
       const profile = detailedProfiles[0];
@@ -1254,7 +1476,8 @@ export async function deepEnrichCreator(
       if (profile.engagementRate) {
         updateData.instagramEngagementRate = `${profile.engagementRate.toFixed(2)}%`;
       } else if (profile.avgLikes && profile.followersCount) {
-        const engRate = ((profile.avgLikes + (profile.avgComments || 0)) / profile.followersCount) * 100;
+        const engRate =
+          ((profile.avgLikes + (profile.avgComments || 0)) / profile.followersCount) * 100;
         updateData.instagramEngagementRate = `${engRate.toFixed(2)}%`;
       }
 
@@ -1302,7 +1525,7 @@ export async function deepEnrichCreator(
 
 export async function batchDeepEnrich(
   creatorIds: number[],
-  options: { forceRefresh?: boolean } = {}
+  options: { forceRefresh?: boolean } = {},
 ): Promise<BatchEnrichResult> {
   let enriched = 0;
   let skipped = 0;
@@ -1319,12 +1542,12 @@ export async function batchDeepEnrich(
       }
       totalCost += result.costEstimate;
       if (result.errors.length > 0) {
-        errors.push(...result.errors.map(e => `Creator ${creatorId}: ${e}`));
+        errors.push(...result.errors.map((e) => `Creator ${creatorId}: ${e}`));
       }
     } catch (error: any) {
       errors.push(`Creator ${creatorId}: ${error.message}`);
     }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   return {
@@ -1338,23 +1561,20 @@ export async function batchDeepEnrich(
 
 export async function getCreatorsNeedingEnrichment(limit: number = 50): Promise<number[]> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  
-  const creators = await db.select({ id: users.id })
+
+  const creators = await db
+    .select({ id: users.id })
     .from(users)
     .where(eq(users.role, 'creator'))
     .limit(limit);
 
-  return creators
-    .filter(c => true)
-    .map(c => c.id);
+  return creators.filter((c) => true).map((c) => c.id);
 }
 
 export async function getCompaniesNeedingEnrichment(limit: number = 50): Promise<number[]> {
-  const companies_list = await db.select({ id: companies.id })
-    .from(companies)
-    .limit(limit);
+  const companies_list = await db.select({ id: companies.id }).from(companies).limit(limit);
 
-  return companies_list.map(c => c.id);
+  return companies_list.map((c) => c.id);
 }
 
 export default {

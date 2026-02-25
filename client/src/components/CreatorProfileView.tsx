@@ -5,16 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { 
-  ArrowLeft, 
-  Instagram, 
-  Youtube, 
+import {
+  ArrowLeft,
+  Instagram,
+  Youtube,
   Users,
   Mail,
   MapPin,
-  Shield,
   TrendingUp,
   Image as ImageIcon,
   Hash,
@@ -27,7 +24,6 @@ import {
   BarChart3,
   BadgeCheck,
   Sparkles,
-  UserCheck,
   FileText,
   Briefcase,
   Building2,
@@ -39,15 +35,22 @@ import {
   Phone,
   AlertTriangle,
   Home,
-  Copy
+  Copy,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { User, CreatorPost } from '@shared/schema';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { getAvatarUrl, getPublicAvatarUrl } from '@/lib/utils';
 import StarRating from '@/components/StarRating';
 import { InviteToCampaignModal } from '@/components/InviteToCampaignModal';
 import { InstagramAvatar } from '@/components/instagram-avatar';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { lazy, Suspense } from 'react';
 const CreatorDeepAnalysis = lazy(() => import('@/pages/company/creator-deep-analysis'));
 
@@ -56,13 +59,6 @@ function formatNumber(num: number | null | undefined): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
   return num.toLocaleString();
-}
-
-function formatEngagementRate(rate: string | number | null | undefined): string {
-  if (rate === null || rate === undefined) return 'N/A';
-  const numRate = typeof rate === 'string' ? parseFloat(rate) : rate;
-  if (isNaN(numRate)) return 'N/A';
-  return `${numRate.toFixed(1)}%`;
 }
 
 function formatPhone(phone: string | null | undefined): string {
@@ -87,9 +83,11 @@ const GENERIC_BIOS = [
 ];
 
 function isGenericBio(bio: string | null | undefined): boolean {
-  if (!bio) return false;
+  if (!bio) return true;
   const normalized = bio.trim().toLowerCase().replace(/\.$/, '');
-  return GENERIC_BIOS.some(g => normalized === g);
+  if (normalized.length < 5) return true;
+  if (normalized.length < 15 && !normalized.includes(' ')) return true;
+  return GENERIC_BIOS.some((g) => normalized === g);
 }
 
 function hasValidInstagramData(creator: User): boolean {
@@ -142,7 +140,7 @@ export default function CreatorProfileView({
   ratingData,
   isPublic = false,
   backUrl = '/creators',
-  backLabel = 'Voltar para Banco de Talentos'
+  backLabel = 'Voltar para Banco de Talentos',
 }: CreatorProfileViewProps) {
   const [_, navigate] = useLocation();
   const { toast } = useToast();
@@ -153,22 +151,29 @@ export default function CreatorProfileView({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
 
-  const avatarUrl = isPublic ? getPublicAvatarUrl(creator.avatar) : getAvatarUrl(creator.avatar);
+  // Accept any valid profile pic URL (except dicebear fallbacks)
+  const instagramPicUrl =
+    creator.instagramProfilePic && !creator.instagramProfilePic.includes('dicebear')
+      ? creator.instagramProfilePic
+      : null;
+  const fallbackAvatarUrl = isPublic
+    ? getPublicAvatarUrl(creator.avatar)
+    : getAvatarUrl(creator.avatar);
 
   const handleShareProfile = async () => {
     const publicUrl = `${window.location.origin}/public/creator/${creator.id}`;
-    
+
     try {
       await navigator.clipboard.writeText(publicUrl);
       toast({
-        title: "Link copiado!",
-        description: "O link do perfil público foi copiado para a área de transferência.",
+        title: 'Link copiado!',
+        description: 'O link do perfil público foi copiado para a área de transferência.',
       });
     } catch (error) {
       toast({
-        title: "Erro",
-        description: "Não foi possível copiar o link.",
-        variant: "destructive"
+        title: 'Erro',
+        description: 'Não foi possível copiar o link.',
+        variant: 'destructive',
       });
     }
   };
@@ -181,7 +186,7 @@ export default function CreatorProfileView({
 
   const handleAnalyzePost = async () => {
     if (!selectedPost || isPublic) return;
-    
+
     setIsAnalyzing(true);
     try {
       const res = await fetch('/api/ai/analyze-post', {
@@ -201,15 +206,15 @@ export default function CreatorProfileView({
           creatorFollowers: creator?.instagramFollowers,
         }),
       });
-      
+
       if (!res.ok) throw new Error('Falha na análise');
       const data = await res.json();
       setAiAnalysis(data.analysis);
     } catch (error) {
       toast({
-        title: "Erro na análise",
-        description: "Não foi possível analisar o post com IA.",
-        variant: "destructive"
+        title: 'Erro na análise',
+        description: 'Não foi possível analisar o post com IA.',
+        variant: 'destructive',
       });
     } finally {
       setIsAnalyzing(false);
@@ -228,38 +233,39 @@ export default function CreatorProfileView({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast({ title: data.error || "Erro ao enviar convite. Verifique se você tem uma empresa selecionada.", variant: "destructive" });
+        toast({
+          title:
+            data.error || 'Erro ao enviar convite. Verifique se você tem uma empresa selecionada.',
+          variant: 'destructive',
+        });
         return;
       }
-      toast({ title: "Convite para comunidade enviado!" });
+      toast({ title: 'Convite para comunidade enviado!' });
     } catch {
-      toast({ title: "Erro ao enviar convite", variant: "destructive" });
+      toast({ title: 'Erro ao enviar convite', variant: 'destructive' });
     } finally {
       setCommunityInviting(false);
     }
   };
 
-  const authenticityScore = creator.instagramAuthenticityScore || 0;
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return { bg: 'bg-green-500', text: 'text-green-700', label: 'Excelente', badge: 'bg-green-100 text-green-700 border-green-200' };
-    if (score >= 60) return { bg: 'bg-blue-500', text: 'text-blue-700', label: 'Bom', badge: 'bg-blue-100 text-blue-700 border-blue-200' };
-    if (score >= 40) return { bg: 'bg-yellow-500', text: 'text-yellow-700', label: 'Regular', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
-    return { bg: 'bg-red-500', text: 'text-red-700', label: 'Baixo', badge: 'bg-red-100 text-red-700 border-red-200' };
-  };
-  const scoreStyle = getScoreColor(authenticityScore);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   const invalidProfile = creator.instagram && !hasValidInstagramData(creator);
-  const genericBio = isGenericBio(creator.bio);
+  const effectiveBio = (creator as any).instagramBio || creator.bio;
+  const genericBio = isGenericBio(effectiveBio);
+  const shortBio = effectiveBio && !genericBio && effectiveBio.length < 120;
+  const longBio = effectiveBio && !genericBio && effectiveBio.length >= 120;
 
-  const hasContactInfo = !isPublic && (creator.pixKey || creator.email || creator.phone || creator.cep);
+  const hasContactInfo =
+    !isPublic && (creator.pixKey || creator.email || creator.phone || creator.cep);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         {!isPublic && (
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate(backUrl)} 
+          <Button
+            variant="ghost"
+            onClick={() => navigate(backUrl)}
             className="pl-0 hover:pl-2 transition-all"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -267,20 +273,36 @@ export default function CreatorProfileView({
           </Button>
         )}
         {isPublic && <div />}
-        
+
         <div className="flex items-center gap-2">
           {!isPublic && (
-            <Button 
-              onClick={() => setInviteModalOpen(true)}
-              className="shadow-sm"
-              data-testid="button-invite-campaign"
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Convidar para campanha
-            </Button>
+            <>
+              <Button
+                onClick={handleInviteCommunity}
+                disabled={communityInviting}
+                variant="outline"
+                className="shadow-sm"
+                data-testid="button-invite-community-top"
+              >
+                {communityInviting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Users className="mr-2 h-4 w-4" />
+                )}
+                Convidar para comunidade
+              </Button>
+              <Button
+                onClick={() => setInviteModalOpen(true)}
+                className="shadow-sm"
+                data-testid="button-invite-campaign"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Convidar para campanha
+              </Button>
+            </>
           )}
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleShareProfile}
             className="shadow-sm"
             data-testid="button-share-profile"
@@ -292,13 +314,20 @@ export default function CreatorProfileView({
       </div>
 
       {invalidProfile && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800" data-testid="warning-invalid-profile">
+        <div
+          className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800"
+          data-testid="warning-invalid-profile"
+        >
           <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium text-amber-800 dark:text-amber-200">Dados do Instagram não verificados</p>
+            <p className="font-medium text-amber-800 dark:text-amber-200">
+              Dados do Instagram não verificados
+            </p>
             <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-              Não foi possível verificar a conta <strong>@{creator.instagram?.replace('@', '')}</strong> no Instagram. 
-              O perfil pode não existir, estar privado ou ter sido alterado. Os dados exibidos podem estar desatualizados.
+              Não foi possível verificar a conta{' '}
+              <strong>@{creator.instagram?.replace('@', '')}</strong> no Instagram. O perfil pode
+              não existir, estar privado ou ter sido alterado. Os dados exibidos podem estar
+              desatualizados.
             </p>
           </div>
         </div>
@@ -307,161 +336,224 @@ export default function CreatorProfileView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-0 shadow-lg overflow-hidden">
-            <div className="h-24 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500" />
+            <div className="h-36 bg-gradient-to-r from-slate-900 via-purple-900/80 to-indigo-900/70 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(120,80,200,0.3),transparent_60%)]" />
+              <div className="absolute -bottom-4 -right-8 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+              <div className="absolute -top-4 -left-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            </div>
             <CardContent className="pt-0 px-6 pb-6">
-              <div className="flex flex-col sm:flex-row gap-4 -mt-12">
+              <div className="flex flex-col sm:flex-row gap-4 -mt-16">
                 {creator.instagram ? (
                   <InstagramAvatar
                     username={creator.instagram}
-                    initialPicUrl={avatarUrl}
+                    initialPicUrl={instagramPicUrl}
                     size="xl"
-                    className="h-28 w-28 border-4 border-background shadow-xl"
+                    className="h-28 w-28 border-4 border-background shadow-2xl ring-2 ring-primary/20"
                   />
                 ) : (
-                  <Avatar className="h-28 w-28 border-4 border-background shadow-xl">
-                    <AvatarImage src={avatarUrl} />
-                    <AvatarFallback className="text-3xl bg-gradient-to-br from-pink-500 to-purple-600 text-white">
+                  <Avatar className="h-28 w-28 border-4 border-background shadow-2xl ring-2 ring-primary/20">
+                    <AvatarImage src={fallbackAvatarUrl || undefined} />
+                    <AvatarFallback className="text-4xl bg-gradient-to-br from-pink-500 to-purple-600 text-white">
                       {creator.name[0]}
                     </AvatarFallback>
                   </Avatar>
                 )}
-                
-                <div className="flex-1 pt-14 sm:pt-4">
+
+                <div className="flex-1 pt-18 sm:pt-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-bold">{creator.name}</h1>
+                        <h1 className="text-3xl font-bold tracking-tight text-white">
+                          {creator.name}
+                        </h1>
                         {creator.instagramVerified && (
-                          <BadgeCheck className="h-5 w-5 text-blue-500 fill-blue-500" />
+                          <BadgeCheck className="h-6 w-6 text-blue-500 fill-blue-500" />
                         )}
                       </div>
                       {creator.instagram && (
-                        <a 
+                        <a
                           href={`https://instagram.com/${creator.instagram.replace('@', '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-pink-600 transition-colors flex items-center gap-1"
+                          className="text-white/70 hover:text-pink-400 transition-colors flex items-center gap-1"
                         >
-                          <Instagram className="h-4 w-4" />
-                          @{creator.instagram.replace('@', '')}
+                          <Instagram className="h-4 w-4" />@{creator.instagram.replace('@', '')}
                         </a>
                       )}
-                      {creator.city && creator.state && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {creator.city}, {creator.state}
-                        </p>
-                      )}
-                    </div>
-                    
-                    {creator.niche && creator.niche.length > 0 && (
-                      <div className="flex gap-1.5 flex-wrap justify-end">
-                        {creator.niche.map((n, i) => (
-                          <Badge key={i} className="bg-primary/10 text-primary border-0">
-                            {n}
-                          </Badge>
-                        ))}
+                      {shortBio && <p className="text-sm text-white/60 mt-1">{effectiveBio}</p>}
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        {creator.city && creator.state && (
+                          <p className="text-sm text-white/60 flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {creator.city}, {creator.state}
+                          </p>
+                        )}
+                        {ratingData && ratingData.count > 0 && (
+                          <StarRating
+                            rating={ratingData.average}
+                            count={ratingData.count}
+                            size="sm"
+                          />
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {!invalidProfile && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-                  <div className="bg-gradient-to-br from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/30 rounded-xl p-4 text-center border border-pink-100 dark:border-pink-900/50">
-                    <Users className="h-5 w-5 text-pink-600 mx-auto mb-1" />
-                    <div className="text-2xl font-bold text-pink-900 dark:text-pink-100">
+                  <div className="rounded-xl p-4 text-center bg-card border shadow-sm hover:shadow-md transition-shadow">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-pink-100 dark:bg-pink-900/30 mb-2">
+                      <Users className="h-5 w-5 text-pink-600" />
+                    </div>
+                    <div className="text-2xl font-bold tracking-tight">
                       {formatNumber(creator.instagramFollowers)}
                     </div>
-                    <div className="text-xs text-pink-700 dark:text-pink-300 font-medium">Seguidores</div>
+                    <div className="text-xs text-muted-foreground font-medium">Seguidores</div>
                   </div>
-                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30 rounded-xl p-4 text-center border border-purple-100 dark:border-purple-900/50">
-                    <UserCheck className="h-5 w-5 text-purple-600 mx-auto mb-1" />
-                    <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                      {formatNumber(creator.instagramFollowing)}
+                  <div className="rounded-xl p-4 text-center bg-card border shadow-sm hover:shadow-md transition-shadow">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 mb-2">
+                      <ImageIcon className="h-5 w-5 text-blue-600" />
                     </div>
-                    <div className="text-xs text-purple-700 dark:text-purple-300 font-medium">Seguindo</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-xl p-4 text-center border border-blue-100 dark:border-blue-900/50">
-                    <ImageIcon className="h-5 w-5 text-blue-600 mx-auto mb-1" />
-                    <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                    <div className="text-2xl font-bold tracking-tight">
                       {formatNumber(creator.instagramPosts)}
                     </div>
-                    <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">Posts</div>
+                    <div className="text-xs text-muted-foreground font-medium">Posts</div>
                   </div>
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-xl p-4 text-center border border-green-100 dark:border-green-900/50">
-                    <TrendingUp className="h-5 w-5 text-green-600 mx-auto mb-1" />
-                    <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-                      {formatEngagementRate(creator.instagramEngagementRate)}
+                  <div className="rounded-xl p-4 text-center bg-card border shadow-sm hover:shadow-md transition-shadow">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 mb-2">
+                      <Briefcase className="h-5 w-5 text-purple-600" />
                     </div>
-                    <div className="text-xs text-green-700 dark:text-green-300 font-medium">Engajamento</div>
+                    <div className="text-2xl font-bold tracking-tight">{completedJobs.length}</div>
+                    <div className="text-xs text-muted-foreground font-medium">Campanhas</div>
+                  </div>
+                  <div className="rounded-xl p-4 text-center bg-card border shadow-sm hover:shadow-md transition-shadow">
+                    <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 mb-2">
+                      <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                    </div>
+                    <div className="text-2xl font-bold tracking-tight">
+                      {ratingData && ratingData.count > 0 ? ratingData.average.toFixed(1) : 'N/A'}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-medium">
+                      Nota{ratingData && ratingData.count > 0 ? ` (${ratingData.count})` : ''}
+                    </div>
                   </div>
                 </div>
               )}
 
-              <Tabs defaultValue="sobre" className="mt-6 pt-6 border-t">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="sobre" data-testid="tab-sobre">
-                    <FileText className="h-4 w-4 mr-1.5" />
-                    Sobre
-                  </TabsTrigger>
-                  {!isPublic && (
-                    <TabsTrigger value="analise" data-testid="tab-analise-profunda">
-                      <BarChart3 className="h-4 w-4 mr-1.5" />
-                      Análise Profunda
-                    </TabsTrigger>
-                  )}
-                </TabsList>
-
-                <TabsContent value="sobre" className="space-y-0">
-                  {creator.bio && !genericBio && (
-                    <div className="mb-4">
-                      <h4 className="font-medium flex items-center gap-2 mb-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        Sobre
-                      </h4>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {creator.bio}
+              {/* SOBRE - Inline content without tabs */}
+              <div className="mt-6 pt-6 border-t space-y-5">
+                {longBio && (
+                  <div>
+                    <h4 className="font-medium flex items-center gap-2 mb-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      Sobre
+                    </h4>
+                    <div className="relative">
+                      <p
+                        className={`text-muted-foreground leading-relaxed ${!bioExpanded ? 'line-clamp-3' : ''}`}
+                      >
+                        {effectiveBio}
                       </p>
+                      {effectiveBio!.length > 200 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1 h-auto p-0 text-xs text-primary hover:text-primary/80"
+                          onClick={() => setBioExpanded(!bioExpanded)}
+                        >
+                          {bioExpanded ? (
+                            <>
+                              <ChevronUp className="h-3 w-3 mr-1" /> Ver menos
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3 mr-1" /> Ver mais
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {(creator as any).instagramExternalUrl && (
+                        <a
+                          href={
+                            (creator as any).instagramExternalUrl.startsWith('http')
+                              ? (creator as any).instagramExternalUrl
+                              : `https://${(creator as any).instagramExternalUrl}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-sm text-primary hover:underline"
+                        >
+                          <Link2 className="h-3.5 w-3.5" />
+                          {(creator as any).instagramExternalUrl
+                            .replace(/^https?:\/\//, '')
+                            .replace(/\/$/, '')}
+                        </a>
+                      )}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {genericBio && (
-                    <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-dashed">
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-500" />
-                        Bio genérica detectada — o criador ainda não personalizou sua bio.
-                      </p>
-                    </div>
-                  )}
-
-                  {creator.portfolioUrl && (
-                    <div className="mb-4 pt-4 border-t">
-                      <h4 className="font-medium flex items-center gap-2 mb-2">
-                        <Link2 className="h-4 w-4 text-muted-foreground" />
-                        Mídia Kit
-                      </h4>
-                      <a 
-                        href={creator.portfolioUrl.startsWith('http') ? creator.portfolioUrl : `https://${creator.portfolioUrl}`}
+                {genericBio && (effectiveBio || (creator as any).instagramExternalUrl) && (
+                  <div className="space-y-2">
+                    {effectiveBio && (
+                      <p className="text-sm text-muted-foreground">{effectiveBio}</p>
+                    )}
+                    {(creator as any).instagramExternalUrl && (
+                      <a
+                        href={
+                          (creator as any).instagramExternalUrl.startsWith('http')
+                            ? (creator as any).instagramExternalUrl
+                            : `https://${(creator as any).instagramExternalUrl}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted transition-colors"
-                        data-testid="link-media-kit"
+                        className="text-sm text-primary hover:underline flex items-center gap-1"
                       >
-                        <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                          <Link2 className="h-4 w-4 text-amber-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">Mídia Kit</p>
-                          <p className="text-xs text-muted-foreground truncate">{creator.portfolioUrl}</p>
-                        </div>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        <Link2 className="h-3.5 w-3.5" />
+                        {(creator as any).instagramExternalUrl
+                          .replace(/^https?:\/\//, '')
+                          .replace(/\/$/, '')}
                       </a>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
 
-                  {!invalidProfile && creator.instagramTopHashtags && creator.instagramTopHashtags.length > 0 && (
+                {creator.portfolioUrl && (
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium flex items-center gap-2 mb-2">
+                      <Link2 className="h-4 w-4 text-muted-foreground" />
+                      Mídia Kit
+                    </h4>
+                    <a
+                      href={
+                        creator.portfolioUrl.startsWith('http')
+                          ? creator.portfolioUrl
+                          : `https://${creator.portfolioUrl}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted transition-colors"
+                      data-testid="link-media-kit"
+                    >
+                      <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                        <Link2 className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">Mídia Kit</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {creator.portfolioUrl}
+                        </p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                )}
+
+                {!invalidProfile &&
+                  creator.instagramTopHashtags &&
+                  creator.instagramTopHashtags.length > 0 && (
                     <div className="pt-4 border-t">
                       <h4 className="font-medium flex items-center gap-2 mb-2">
                         <Hash className="h-4 w-4 text-muted-foreground" />
@@ -469,7 +561,11 @@ export default function CreatorProfileView({
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {creator.instagramTopHashtags.slice(0, 10).map((tag, i) => (
-                          <Badge key={i} variant="secondary" className="bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800">
+                          <Badge
+                            key={i}
+                            variant="secondary"
+                            className="bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+                          >
                             #{tag}
                           </Badge>
                         ))}
@@ -477,225 +573,268 @@ export default function CreatorProfileView({
                     </div>
                   )}
 
-                  {completedJobs && completedJobs.length > 0 && (
-                    <div className="pt-4 border-t">
-                      <h4 className="font-medium flex items-center gap-2 mb-3">
-                        <Briefcase className="h-4 w-4 text-muted-foreground" />
-                        Campanhas Concluídas
-                        <Badge variant="secondary" className="ml-1">{completedJobs.length}</Badge>
-                      </h4>
-                      <div className="space-y-2">
-                        {completedJobs.slice(0, 5).map((job) => (
-                          <div 
-                            key={job.id}
-                            className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                            data-testid={`card-completed-job-${job.id}`}
-                          >
-                            <Avatar className="h-9 w-9">
-                              <AvatarImage src={job.companyLogo ? getAvatarUrl(job.companyLogo) : undefined} />
-                              <AvatarFallback className="bg-amber-100 text-amber-700 text-xs">
-                                {job.companyName[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{job.campaignTitle}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Building2 className="h-3 w-3" />
-                                {job.companyName}
-                              </p>
+                {completedJobs && completedJobs.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium flex items-center gap-2 mb-3">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      Campanhas Concluídas
+                      <Badge variant="secondary" className="ml-1">
+                        {completedJobs.length}
+                      </Badge>
+                    </h4>
+                    <div className="space-y-2">
+                      {completedJobs.slice(0, 5).map((job) => (
+                        <div
+                          key={job.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                          data-testid={`card-completed-job-${job.id}`}
+                        >
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage
+                              src={job.companyLogo ? getAvatarUrl(job.companyLogo) : undefined}
+                            />
+                            <AvatarFallback className="bg-amber-100 text-amber-700 text-xs">
+                              {job.companyName[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{job.campaignTitle}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Building2 className="h-3 w-3" />
+                              {job.companyName}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Concluído
                             </div>
-                            <div className="text-right shrink-0">
-                              <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Concluído
-                              </div>
-                              {job.completedAt && (
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(job.completedAt).toLocaleDateString('pt-BR')}
-                                </p>
+                            {job.completedAt && (
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(job.completedAt).toLocaleDateString('pt-BR')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {communities && communities.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium flex items-center gap-2 mb-3">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      Comunidades
+                      <Badge variant="secondary" className="ml-1">
+                        {communities.length}
+                      </Badge>
+                    </h4>
+                    <div className="space-y-2">
+                      {communities.map((community) => (
+                        <div
+                          key={community.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/20 dark:to-purple-950/20"
+                          data-testid={`card-community-${community.id}`}
+                        >
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage
+                              src={
+                                community.companyLogo
+                                  ? getAvatarUrl(community.companyLogo)
+                                  : undefined
+                              }
+                            />
+                            <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs">
+                              {community.companyName[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{community.companyName}</p>
+                            <div className="flex items-center gap-2">
+                              {community.tierName && (
+                                <Badge variant="outline" className="text-xs">
+                                  {community.tierName}
+                                </Badge>
+                              )}
+                              {community.points > 0 && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                                  {community.points} pts
+                                </span>
                               )}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {communities && communities.length > 0 && (
-                    <div className="pt-4 border-t">
-                      <h4 className="font-medium flex items-center gap-2 mb-3">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        Comunidades
-                        <Badge variant="secondary" className="ml-1">{communities.length}</Badge>
-                      </h4>
-                      <div className="space-y-2">
-                        {communities.map((community) => (
-                          <div 
-                            key={community.id}
-                            className="flex items-center gap-3 p-3 rounded-lg border bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/20 dark:to-purple-950/20"
-                            data-testid={`card-community-${community.id}`}
+                          <Badge
+                            variant="outline"
+                            className={
+                              community.status === 'active'
+                                ? 'bg-green-50 text-green-700 border-green-200 text-xs'
+                                : 'bg-gray-50 text-gray-600 text-xs'
+                            }
                           >
-                            <Avatar className="h-9 w-9">
-                              <AvatarImage src={community.companyLogo ? getAvatarUrl(community.companyLogo) : undefined} />
-                              <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs">
-                                {community.companyName[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{community.companyName}</p>
-                              <div className="flex items-center gap-2">
-                                {community.tierName && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {community.tierName}
-                                  </Badge>
-                                )}
-                                {community.points > 0 && (
-                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
-                                    {community.points} pts
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <Badge 
-                              variant="outline" 
-                              className={community.status === 'active' ? 'bg-green-50 text-green-700 border-green-200 text-xs' : 'bg-gray-50 text-gray-600 text-xs'}
-                            >
-                              {community.status === 'active' ? 'Ativo' : community.status}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
+                            {community.status === 'active' ? 'Ativo' : community.status}
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </TabsContent>
-
-                {!isPublic && (
-                  <TabsContent value="analise" className="space-y-4">
-                    <Suspense fallback={
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="mt-4 text-sm text-muted-foreground">Carregando análise...</p>
-                      </div>
-                    }>
-                      <CreatorDeepAnalysis embeddedCreatorId={creator.id} embedded={true} />
-                    </Suspense>
-                  </TabsContent>
+                  </div>
                 )}
-              </Tabs>
+              </div>
             </CardContent>
           </Card>
+
+          {/* ANÁLISE - Inline section */}
+          {!isPublic && (
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Análise
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Suspense
+                  fallback={
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="mt-4 text-sm text-muted-foreground">Carregando análise...</p>
+                    </div>
+                  }
+                >
+                  <CreatorDeepAnalysis embeddedCreatorId={creator.id} embedded={true} />
+                </Suspense>
+              </CardContent>
+            </Card>
+          )}
 
           {!invalidProfile && creatorPosts && creatorPosts.length > 0 && (
             <Card className="border-0 shadow-lg">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-pink-600" />
-                  Top Posts
-                  <Badge variant="secondary" className="ml-2">{creatorPosts.length} posts</Badge>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-pink-600" />
+                    Posts
+                  </CardTitle>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <span>{creatorPosts.length} posts</span>
+                    {(() => {
+                      const avgEng =
+                        creatorPosts.reduce(
+                          (sum, p) => sum + parseFloat(p.engagementRate || '0'),
+                          0,
+                        ) / creatorPosts.length;
+                      return avgEng > 0 ? (
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="h-3.5 w-3.5" />
+                          {avgEng.toFixed(2)}% eng.
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {creatorPosts.slice(0, 6).map((post, i) => {
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {creatorPosts.slice(0, 12).map((post, i) => {
                     const hasThumb = !!post.thumbnailUrl;
                     const isVideo = post.postType === 'video' || post.postType === 'reel';
+                    const engRate = parseFloat(post.engagementRate || '0');
+                    const postTypeLabel =
+                      post.postType === 'reel'
+                        ? 'Reel'
+                        : post.postType === 'video'
+                          ? 'Vídeo'
+                          : post.postType === 'carousel'
+                            ? 'Carrossel'
+                            : 'Imagem';
                     return (
                       <div
                         key={post.id}
-                        className="group rounded-xl overflow-hidden bg-muted shadow-sm border hover:shadow-md transition-all cursor-pointer"
-                        data-testid={`card-top-post-${i}`}
+                        className="group rounded-xl overflow-hidden bg-card shadow-sm border hover:shadow-md transition-all cursor-pointer"
+                        data-testid={`card-post-${i}`}
                         onClick={() => handleOpenPost(post)}
                       >
                         <div className="relative aspect-square">
                           {hasThumb && !failedThumbs.has(post.id) ? (
                             <img
                               src={post.thumbnailUrl!}
-                              alt={post.caption?.slice(0, 50) || `Top post ${i + 1}`}
+                              alt={post.caption?.slice(0, 50) || `Post ${i + 1}`}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                               loading="lazy"
                               onError={() => {
-                                setFailedThumbs(prev => new Set(prev).add(post.id));
+                                setFailedThumbs((prev) => new Set(prev).add(post.id));
                               }}
                             />
                           ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 gap-2">
                               {isVideo ? (
-                                <>
-                                  <div className="p-3 bg-pink-100 dark:bg-pink-900/30 rounded-full">
-                                    <Sparkles className="h-6 w-6 text-pink-600" />
-                                  </div>
-                                  <span className="text-xs text-muted-foreground font-medium">
-                                    {post.postType === 'reel' ? 'Reel' : 'Vídeo'}
-                                  </span>
-                                </>
+                                <div className="p-3 bg-pink-100 dark:bg-pink-900/30 rounded-full">
+                                  <Sparkles className="h-6 w-6 text-pink-600" />
+                                </div>
                               ) : (
-                                <>
-                                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                                    <ImageIcon className="h-6 w-6 text-blue-600" />
-                                  </div>
-                                  <span className="text-xs text-muted-foreground font-medium">
-                                    {post.postType === 'carousel' ? 'Carrossel' : 'Imagem'}
-                                  </span>
-                                </>
+                                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                                  <ImageIcon className="h-6 w-6 text-blue-600" />
+                                </div>
                               )}
-                            </div>
-                          )}
-                          {(post as any).aiAnalysis && (
-                            <div className="absolute top-2 left-2">
-                              <Badge className="bg-purple-600/90 text-white text-xs border-0">
-                                <Bot className="h-3 w-3 mr-1" />
-                                Analisado
-                              </Badge>
-                            </div>
-                          )}
-                          {!isPublic && !(post as any).aiAnalysis && (
-                            <div className="absolute top-2 right-2 flex gap-1">
-                              <Badge className="bg-black/60 text-white text-xs">
-                                <Bot className="h-3 w-3 mr-1" />
-                                Analisar
-                              </Badge>
-                            </div>
-                          )}
-                          <a
-                            href={post.postUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="absolute bottom-2 right-2 p-1.5 bg-black/60 rounded-full hover:bg-black/80"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="h-3 w-3 text-white" />
-                          </a>
-                        </div>
-                        <div className="p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4 text-sm">
-                              <span className="flex items-center gap-1 text-pink-600">
-                                <Heart className="h-4 w-4 fill-pink-600" />
-                                {formatNumber(post.likes)}
+                              <span className="text-xs text-muted-foreground font-medium">
+                                {postTypeLabel}
                               </span>
-                              <span className="flex items-center gap-1 text-blue-600">
-                                <MessageCircle className="h-4 w-4" />
-                                {formatNumber(post.comments)}
-                              </span>
-                              {post.views && post.views > 0 && (
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <TrendingUp className="h-4 w-4" />
-                                  {formatNumber(post.views)}
-                                </span>
-                              )}
                             </div>
-                            {post.engagementRate && (
-                              <Badge variant="outline" className="text-xs">
-                                {post.engagementRate}
+                          )}
+                          {/* Badges */}
+                          <div className="absolute top-2 left-2 flex gap-1">
+                            <Badge className="bg-black/60 backdrop-blur-sm text-white text-[10px] border-0 py-0.5 px-1.5">
+                              {postTypeLabel}
+                            </Badge>
+                            {engRate > 5 && (
+                              <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] border-0 py-0.5 px-1.5">
+                                Viral
                               </Badge>
                             )}
                           </div>
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-0.5">
+                                  <Heart className="h-3 w-3" /> {formatNumber(post.likes)}
+                                </span>
+                                <span className="flex items-center gap-0.5">
+                                  <MessageCircle className="h-3 w-3" />{' '}
+                                  {formatNumber(post.comments)}
+                                </span>
+                              </div>
+                              {post.engagementRate && (
+                                <span className="flex items-center gap-0.5">
+                                  <TrendingUp className="h-3 w-3" /> {post.engagementRate}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-2.5 space-y-1.5">
                           {post.caption && (
                             <p className="text-xs text-muted-foreground line-clamp-2">
                               {post.caption}
                             </p>
                           )}
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1 text-pink-600">
+                                <Heart className="h-3 w-3 fill-pink-600" />{' '}
+                                {formatNumber(post.likes)}
+                              </span>
+                              <span className="flex items-center gap-1 text-blue-600">
+                                <MessageCircle className="h-3 w-3" /> {formatNumber(post.comments)}
+                              </span>
+                            </div>
+                            {post.engagementRate && (
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <TrendingUp className="h-3 w-3" /> {post.engagementRate}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -704,45 +843,10 @@ export default function CreatorProfileView({
               </CardContent>
             </Card>
           )}
-
         </div>
 
         {/* SIDEBAR */}
         <div className="space-y-6">
-          {/* Sidebar profile avatar */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-              {creator.instagram ? (
-                <InstagramAvatar
-                  username={creator.instagram}
-                  initialPicUrl={avatarUrl}
-                  size="xl"
-                  className="h-20 w-20 border-2 border-primary/20 shadow-md"
-                />
-              ) : (
-                <Avatar className="h-20 w-20 border-2 border-primary/20 shadow-md">
-                  <AvatarImage src={avatarUrl} />
-                  <AvatarFallback className="text-2xl bg-gradient-to-br from-pink-500 to-purple-600 text-white">
-                    {creator.name[0]}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-              <h3 className="font-semibold mt-3">{creator.name}</h3>
-              {creator.instagram && (
-                <p className="text-sm text-muted-foreground">@{creator.instagram.replace('@', '')}</p>
-              )}
-              {ratingData && ratingData.count > 0 && (
-                <div className="mt-2">
-                  <StarRating 
-                    rating={ratingData.average} 
-                    count={ratingData.count} 
-                    size="sm"
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Social Networks */}
           <Card className="border-0 shadow-lg">
             <CardHeader className="pb-3">
@@ -753,7 +857,7 @@ export default function CreatorProfileView({
             </CardHeader>
             <CardContent className="space-y-3">
               {creator.instagram && (
-                <a 
+                <a
                   href={`https://instagram.com/${creator.instagram.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -765,15 +869,21 @@ export default function CreatorProfileView({
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">Instagram</p>
-                    <p className="text-sm text-muted-foreground">@{creator.instagram.replace('@', '')}</p>
+                    <p className="text-sm text-muted-foreground">
+                      @{creator.instagram.replace('@', '')}
+                    </p>
                   </div>
                   <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                 </a>
               )}
 
               {creator.youtube && (
-                <a 
-                  href={creator.youtube.startsWith('http') ? creator.youtube : `https://youtube.com/@${creator.youtube.replace('@', '')}`}
+                <a
+                  href={
+                    creator.youtube.startsWith('http')
+                      ? creator.youtube
+                      : `https://youtube.com/@${creator.youtube.replace('@', '')}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors group"
@@ -791,8 +901,12 @@ export default function CreatorProfileView({
               )}
 
               {creator.tiktok && (
-                <a 
-                  href={creator.tiktok.startsWith('http') ? creator.tiktok : `https://tiktok.com/@${creator.tiktok.replace('@', '')}`}
+                <a
+                  href={
+                    creator.tiktok.startsWith('http')
+                      ? creator.tiktok
+                      : `https://tiktok.com/@${creator.tiktok.replace('@', '')}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/50 transition-colors group"
@@ -800,7 +914,7 @@ export default function CreatorProfileView({
                 >
                   <div className="p-2 bg-black rounded-lg text-white">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
                     </svg>
                   </div>
                   <div className="flex-1">
@@ -830,16 +944,16 @@ export default function CreatorProfileView({
               </CardHeader>
               <CardContent className="space-y-3">
                 {creator.pixKey && (
-                  <div 
+                  <div
                     role="button"
                     tabIndex={0}
                     className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted transition-colors cursor-pointer"
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(creator.pixKey!);
-                        toast({ title: "Chave PIX copiada!" });
+                        toast({ title: 'Chave PIX copiada!' });
                       } catch {
-                        toast({ title: "Não foi possível copiar", variant: "destructive" });
+                        toast({ title: 'Não foi possível copiar', variant: 'destructive' });
                       }
                     }}
                     onKeyDown={async (e) => {
@@ -847,9 +961,9 @@ export default function CreatorProfileView({
                         e.preventDefault();
                         try {
                           await navigator.clipboard.writeText(creator.pixKey!);
-                          toast({ title: "Chave PIX copiada!" });
+                          toast({ title: 'Chave PIX copiada!' });
                         } catch {
-                          toast({ title: "Não foi possível copiar", variant: "destructive" });
+                          toast({ title: 'Não foi possível copiar', variant: 'destructive' });
                         }
                       }
                     }}
@@ -867,7 +981,7 @@ export default function CreatorProfileView({
                 )}
 
                 {creator.email && (
-                  <a 
+                  <a
                     href={`mailto:${creator.email}`}
                     className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted transition-colors"
                     data-testid="link-email-contact"
@@ -883,7 +997,7 @@ export default function CreatorProfileView({
                 )}
 
                 {creator.phone && (
-                  <a 
+                  <a
                     href={`https://wa.me/55${creator.phone.replace(/\D/g, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -902,7 +1016,10 @@ export default function CreatorProfileView({
                 )}
 
                 {creator.cep && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg border" data-testid="text-address">
+                  <div
+                    className="flex items-center gap-3 p-3 rounded-lg border"
+                    data-testid="text-address"
+                  >
                     <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
                       <Home className="h-4 w-4 text-amber-600" />
                     </div>
@@ -917,48 +1034,6 @@ export default function CreatorProfileView({
                 )}
               </CardContent>
             </Card>
-          )}
-
-          {/* Authenticity Score */}
-          {!invalidProfile && creator.instagramAuthenticityScore !== null && creator.instagramAuthenticityScore !== undefined && (
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-5 w-5 text-blue-600" />
-                  Autenticidade
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-4xl font-bold">{authenticityScore}</span>
-                  <Badge variant="outline" className={scoreStyle.badge + " text-sm px-3 py-1"}>
-                    {scoreStyle.label}
-                  </Badge>
-                </div>
-                <Progress value={authenticityScore} className="h-2 mb-2" />
-                <p className="text-xs text-muted-foreground">
-                  Baseado em análise de seguidores e padrões de engajamento
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isPublic && (
-            <Button 
-              onClick={handleInviteCommunity}
-              disabled={communityInviting}
-              variant="outline"
-              className="w-full shadow-lg"
-              size="lg"
-              data-testid="button-invite-community"
-            >
-              {communityInviting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Users className="mr-2 h-4 w-4" />
-              )}
-              Convidar para comunidade
-            </Button>
           )}
         </div>
       </div>
@@ -980,10 +1055,12 @@ export default function CreatorProfileView({
               Detalhes do Post
             </DialogTitle>
             <DialogDescription>
-              {isPublic ? 'Métricas do post' : 'Veja métricas detalhadas e análise com inteligência artificial'}
+              {isPublic
+                ? 'Métricas do post'
+                : 'Veja métricas detalhadas e análise com inteligência artificial'}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedPost && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1004,7 +1081,7 @@ export default function CreatorProfileView({
                     </div>
                   )}
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-pink-50 dark:bg-pink-950 rounded-lg p-3 text-center">
@@ -1052,11 +1129,7 @@ export default function CreatorProfileView({
 
                   <div className="flex gap-2">
                     {!isPublic && (
-                      <Button
-                        onClick={handleAnalyzePost}
-                        disabled={isAnalyzing}
-                        className="flex-1"
-                      >
+                      <Button onClick={handleAnalyzePost} disabled={isAnalyzing} className="flex-1">
                         {isAnalyzing ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1075,16 +1148,8 @@ export default function CreatorProfileView({
                         )}
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      asChild
-                      className={isPublic ? 'flex-1' : ''}
-                    >
-                      <a
-                        href={selectedPost.postUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                    <Button variant="outline" asChild className={isPublic ? 'flex-1' : ''}>
+                      <a href={selectedPost.postUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-4 w-4 mr-2" />
                         Ver no Instagram
                       </a>
@@ -1098,7 +1163,9 @@ export default function CreatorProfileView({
                   <div className="flex items-center gap-2 mb-3">
                     <Bot className="h-5 w-5 text-purple-600" />
                     <h4 className="font-semibold">Análise com IA</h4>
-                    <Badge variant="outline" className="text-xs ml-auto">Salvo</Badge>
+                    <Badge variant="outline" className="text-xs ml-auto">
+                      Salvo
+                    </Badge>
                   </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <p className="whitespace-pre-wrap text-sm">{aiAnalysis}</p>

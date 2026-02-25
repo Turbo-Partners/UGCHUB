@@ -9,33 +9,33 @@
 
 ---
 
-## Estado Atual (atualizado 2026-02-24)
+## Estado Atual (atualizado 2026-02-25)
 
 Resumo das funcionalidades ja implementadas na plataforma:
 
-| Area | O que ja funciona |
-|------|-------------------|
-| **Infra** | Express + TypeScript, PostgreSQL/Drizzle, WebSocket, cron jobs, Object Storage (GCS), SendGrid, Apify |
-| **Auth** | Email/senha, Google OAuth, recuperacao de senha, sessoes persistentes, roles (creator/company/admin), multi-workspace com convites e permissoes |
-| **Campanhas** | CRUD completo, status flow (draft→completed), visibilidade (public/private/community), budget, deliverables, tags, candidaturas com status flow, convites diretos |
-| **Comunidades** | Memberships (invited→active→archived), landing pages (/m/:slug), campanhas exclusivas, Brand Hub para creators, eventos de comunidade |
-| **Gamificacao** | Points ledger, regras configuraveis por marca, tiers com promocao automatica, leaderboards por marca/periodo, campaign prizes (ranking/milestone), reward entitlements |
-| **Mensagens** | Chat por candidatura, DMs, brand conversations, WebSocket real-time, email consolidado |
-| **Instagram — OAuth** | Business Login, OAuth flow, multiplas contas, refresh de tokens |
-| **Instagram — Dados** | Sync de perfil, metricas (followers, follows, media_count), posts recentes |
-| **Instagram — Webhooks** | Mencoes, comentarios, DMs, logging |
-| **Instagram — DMs** | Enviar DM via API, rate limit 200/h, sync progressivo, templates |
-| **Instagram — Hashtags** | Busca via Graph API, posts top/recentes, vincular a campanhas, limite 30/semana, grid, stats |
-| **Instagram — Comentarios** | Listar, responder, ocultar/mostrar, excluir, analise de sentimento (OpenAI), filtros, badges |
-| **Instagram — Publishing** | Imagem, carrossel, Reels, Stories, composer com preview, cota 25/24h |
-| **Instagram — Partnership Ads** | Solicitacao, status, gerenciar parceiros, criar anuncios, metricas, OAuth one-click, convites por link |
-| **Instagram — CRM Social** | Contatos por empresa, metricas de interacao, tags, scoring, historico, auto-populado |
-| **Automacoes** | Engine trigger→action, triggers (mention, comment, dm_keyword, new_follower), actions (send_dm, notify_team, add_tag), filtros, logs |
-| **Financeiro** | Cupons por campanha, atribuicao a creator, tracking de uso, registro de vendas, calculo de comissoes (schemas prontos) |
-| **Academy** | Cursos (course→modules→lessons), progresso do creator, swipe file com collections |
-| **SEO/Marketing** | Meta tags dinamicas, Open Graph, Schema.org, robots.txt otimizado, blog, cases de sucesso, landing pages, FAQPageSchema, bots de IA permitidos |
-| **Brand Canvas V2** | Pipeline IA (Gemini + Claude) para visual identity, voice, content strategy; grid dashboard; refresh mensal automatico |
-| **Admin** | Metricas da plataforma, gestao de usuarios, preview de emails, Ops Hub (tasks, status tracking) |
+| Area                            | O que ja funciona                                                                                                                                                      |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Infra**                       | Express + TypeScript, PostgreSQL/Drizzle, WebSocket, cron jobs, Object Storage (GCS), SendGrid, Apify                                                                  |
+| **Auth**                        | Email/senha, Google OAuth, recuperacao de senha, sessoes persistentes, roles (creator/company/admin), multi-workspace com convites e permissoes                        |
+| **Campanhas**                   | CRUD completo, status flow (draft→completed), visibilidade (public/private/community), budget, deliverables, tags, candidaturas com status flow, convites diretos      |
+| **Comunidades**                 | Memberships (invited→active→archived), landing pages (/m/:slug), campanhas exclusivas, Brand Hub para creators, eventos de comunidade                                  |
+| **Gamificacao**                 | Points ledger, regras configuraveis por marca, tiers com promocao automatica, leaderboards por marca/periodo, campaign prizes (ranking/milestone), reward entitlements |
+| **Mensagens**                   | Chat por candidatura, DMs, brand conversations, WebSocket real-time, email consolidado                                                                                 |
+| **Instagram — OAuth**           | Business Login, OAuth flow, multiplas contas, refresh de tokens                                                                                                        |
+| **Instagram — Dados**           | Sync de perfil, metricas (followers, follows, media_count), posts recentes                                                                                             |
+| **Instagram — Webhooks**        | Mencoes, comentarios, DMs, logging                                                                                                                                     |
+| **Instagram — DMs**             | Enviar DM via API, rate limit 200/h, sync progressivo, templates                                                                                                       |
+| **Instagram — Hashtags**        | Busca via Graph API, posts top/recentes, vincular a campanhas, limite 30/semana, grid, stats                                                                           |
+| **Instagram — Comentarios**     | Listar, responder, ocultar/mostrar, excluir, analise de sentimento (OpenAI), filtros, badges                                                                           |
+| **Instagram — Publishing**      | Imagem, carrossel, Reels, Stories, composer com preview, cota 25/24h                                                                                                   |
+| **Instagram — Partnership Ads** | Solicitacao, status, gerenciar parceiros, criar anuncios, metricas, OAuth one-click, convites por link                                                                 |
+| **Instagram — CRM Social**      | Contatos por empresa, metricas de interacao, tags, scoring, historico, auto-populado                                                                                   |
+| **Automacoes**                  | Engine trigger→action, triggers (mention, comment, dm_keyword, new_follower), actions (send_dm, notify_team, add_tag), filtros, logs                                   |
+| **Financeiro**                  | Cupons por campanha, atribuicao a creator, tracking de uso, registro de vendas, calculo de comissoes (schemas prontos)                                                 |
+| **Academy**                     | Cursos (course→modules→lessons), progresso do creator, swipe file com collections                                                                                      |
+| **SEO/Marketing**               | Meta tags dinamicas, Open Graph, Schema.org, robots.txt otimizado, blog, cases de sucesso, landing pages, FAQPageSchema, bots de IA permitidos                         |
+| **Brand Canvas V2**             | Pipeline IA (Gemini + Claude) para visual identity, voice, content strategy; grid dashboard; refresh mensal automatico                                                 |
+| **Admin**                       | Metricas da plataforma, gestao de usuarios, preview de emails, Ops Hub (tasks, status tracking)                                                                        |
 
 ---
 
@@ -67,14 +67,16 @@ Tres objetivos macro que guiam os proximos 3.5 meses, agora informados pela [ana
 
 ---
 
-#### S02 · Fev 18–24 · Bug Fixes e Performance
+#### S02 · Fev 18–24 · Bug Fixes e Documentacao (parcial)
 
-- [ ] Levantar e corrigir bugs reportados na plataforma (lista priorizada)
-- [ ] Melhorias de performance: lazy loading de rotas, code splitting por role
-- [ ] Adicionar testes para fluxos criticos: auth (login, registro, OAuth), criacao de campanha, candidatura
-- [ ] Revisar e melhorar error handling nos endpoints mais usados
+- [x] Fix enrichment onboarding flow (backend preenche campos, frontend faz polling)
+- [x] Melhorias perfil do creator (contraste, bio real, thumbnails, verified badge)
+- [x] Documentacao: README.md, product-strategy.md, competitor-analysis.md, ROADMAP v3.0
+- [ ] Melhorias de performance: lazy loading de rotas, code splitting por role — movido para S03+
+- [ ] Adicionar testes para fluxos criticos — movido para S03+
+- [ ] Revisar e melhorar error handling nos endpoints mais usados — movido para S03+
 
-**Entregavel**: Principais bugs corrigidos; cobertura de testes nos fluxos core; carregamento inicial mais rapido.
+**Entregavel**: Enrichment fix entregue; documentacao completa; perfil do creator melhorado. Performance e testes extras movidos para sprints futuras.
 
 ---
 
@@ -263,58 +265,58 @@ Itens mapeados para alem deste roadmap, priorizados pela analise competitiva:
 
 ### Prioridade Alta (proximo ciclo)
 
-| Item | Referencia Competitiva | Descricao |
-|------|----------------------|-----------|
-| Roteiros IA Expansao | — | Templates avancados, historico, vinculacao a deliverables (era S08 do v2.0) |
-| Shopify Integration | Superfiliate, Insense, Push Lap | OAuth, sync de pedidos, atribuicao por cupom |
-| Wallet + PIX | BrandLovers (CreatorPay) | Saldo, saques via PIX, aprovacao, comprovantes |
-| AI Brief Builder | SHOUT | IA que cria briefings otimizados a partir de objetivos |
+| Item                 | Referencia Competitiva          | Descricao                                                                   |
+| -------------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| Roteiros IA Expansao | —                               | Templates avancados, historico, vinculacao a deliverables (era S08 do v2.0) |
+| Shopify Integration  | Superfiliate, Insense, Push Lap | OAuth, sync de pedidos, atribuicao por cupom                                |
+| Wallet + PIX         | BrandLovers (CreatorPay)        | Saldo, saques via PIX, aprovacao, comprovantes                              |
+| AI Brief Builder     | SHOUT                           | IA que cria briefings otimizados a partir de objetivos                      |
 
 ### Prioridade Media
 
-| Item | Referencia Competitiva | Descricao |
-|------|----------------------|-----------|
-| Co-branded Landing Pages | Superfiliate (feature unica) | Cada creator recebe landing page personalizada |
-| AI Communication Agent | BrandLovers (Whisper) | Agente IA para comunicacao operacional com creators |
-| TikTok Shop Integration | Superfiliate, Insense, BMC | Social commerce via TikTok |
-| Earned Media Value | Superfiliate, Squid | Metrica de valor de midia conquistada |
-| Fraud Protection | Superfiliate, Push Lap | Protecao contra fraude em affiliate/comissoes |
+| Item                     | Referencia Competitiva       | Descricao                                           |
+| ------------------------ | ---------------------------- | --------------------------------------------------- |
+| Co-branded Landing Pages | Superfiliate (feature unica) | Cada creator recebe landing page personalizada      |
+| AI Communication Agent   | BrandLovers (Whisper)        | Agente IA para comunicacao operacional com creators |
+| TikTok Shop Integration  | Superfiliate, Insense, BMC   | Social commerce via TikTok                          |
+| Earned Media Value       | Superfiliate, Squid          | Metrica de valor de midia conquistada               |
+| Fraud Protection         | Superfiliate, Push Lap       | Protecao contra fraude em affiliate/comissoes       |
 
 ### Prioridade Baixa (longo prazo)
 
-| Item | Referencia Competitiva | Descricao |
-|------|----------------------|-----------|
-| White-label para agencias | Push Lap Growth | Plataforma personalizada para agencias |
-| SSO enterprise | — | Single sign-on para grandes corporacoes |
-| YouTube / Twitter / LinkedIn APIs | Squid (multi-rede) | Integracao com outras redes sociais |
-| CRM externo (HubSpot, RD Station) | — | Sync de contatos e metricas com CRMs |
-| Multi-idioma (EN/ES) | — | Suporte a ingles e espanhol |
-| AI Mashups | — | Combinar clips de diferentes creators, variacoes automaticas |
-| Editor de video/anuncios | Billo (Expert Editing) | Cortar clips, legendas automaticas, templates |
-| Verificacao de email + 2FA | — | Seguranca avancada de conta |
-| Quick Jobs | — | Briefing rapido + match automatico + pagamento instantaneo |
+| Item                              | Referencia Competitiva | Descricao                                                    |
+| --------------------------------- | ---------------------- | ------------------------------------------------------------ |
+| White-label para agencias         | Push Lap Growth        | Plataforma personalizada para agencias                       |
+| SSO enterprise                    | —                      | Single sign-on para grandes corporacoes                      |
+| YouTube / Twitter / LinkedIn APIs | Squid (multi-rede)     | Integracao com outras redes sociais                          |
+| CRM externo (HubSpot, RD Station) | —                      | Sync de contatos e metricas com CRMs                         |
+| Multi-idioma (EN/ES)              | —                      | Suporte a ingles e espanhol                                  |
+| AI Mashups                        | —                      | Combinar clips de diferentes creators, variacoes automaticas |
+| Editor de video/anuncios          | Billo (Expert Editing) | Cortar clips, legendas automaticas, templates                |
+| Verificacao de email + 2FA        | —                      | Seguranca avancada de conta                                  |
+| Quick Jobs                        | —                      | Briefing rapido + match automatico + pagamento instantaneo   |
 
 ### Removido do roadmap ativo → backlog
 
-| Item | Era | Motivo |
-|------|-----|--------|
-| Roteiros IA Expansao | S08 v2.0 | MVP fica em S08, expansao vai para proximo ciclo |
-| Brand Kit MVP | S11 v2.0 | Brand Canvas V2 ja cobre identidade visual — brand kit e incremental |
-| Shopify (como primeira integracao) | S12 v2.0 | Brasil usa mais Yampi/Nuvemshop — Shopify vem depois |
+| Item                               | Era      | Motivo                                                               |
+| ---------------------------------- | -------- | -------------------------------------------------------------------- |
+| Roteiros IA Expansao               | S08 v2.0 | MVP fica em S08, expansao vai para proximo ciclo                     |
+| Brand Kit MVP                      | S11 v2.0 | Brand Canvas V2 ja cobre identidade visual — brand kit e incremental |
+| Shopify (como primeira integracao) | S12 v2.0 | Brasil usa mais Yampi/Nuvemshop — Shopify vem depois                 |
 
 ---
 
 ## Resumo das Mudancas v2.0 → v3.0
 
-| Aspecto | v2.0 | v3.0 |
-|---------|------|------|
-| **Sprints** | 12 (Fev 11 – Mai 5) | 14 (Fev 11 – Mai 19) |
-| **Fase 1** | S01-S04 (sem mudanca) | S01-S04 (sem mudanca) |
-| **Fase 2** | S05-S08 (Automacoes + Roteiros IA) | S05-S09 (Automacoes + **AI Smart Match** + **AI Content Review** + Roteiros IA + **E-commerce BR**) |
-| **Fase 3** | S09-S12 (TikTok + Brand Kit + Shopify) | S10-S14 (TikTok + **Spark Ads** + **Revenue Attribution** + **PWA Mobile** + Buffer) |
-| **IA features** | 1 (Roteiros) | 4 (Smart Match, Content Review, Roteiros, Brand Canvas) |
-| **Base competitiva** | Sem analise | [11 concorrentes analisados](./competitor-analysis.md) |
-| **Estrategia** | — | [Product Strategy v1.0](./product-strategy.md) |
+| Aspecto              | v2.0                                   | v3.0                                                                                                |
+| -------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Sprints**          | 12 (Fev 11 – Mai 5)                    | 14 (Fev 11 – Mai 19)                                                                                |
+| **Fase 1**           | S01-S04 (sem mudanca)                  | S01-S04 (sem mudanca)                                                                               |
+| **Fase 2**           | S05-S08 (Automacoes + Roteiros IA)     | S05-S09 (Automacoes + **AI Smart Match** + **AI Content Review** + Roteiros IA + **E-commerce BR**) |
+| **Fase 3**           | S09-S12 (TikTok + Brand Kit + Shopify) | S10-S14 (TikTok + **Spark Ads** + **Revenue Attribution** + **PWA Mobile** + Buffer)                |
+| **IA features**      | 1 (Roteiros)                           | 4 (Smart Match, Content Review, Roteiros, Brand Canvas)                                             |
+| **Base competitiva** | Sem analise                            | [11 concorrentes analisados](./competitor-analysis.md)                                              |
+| **Estrategia**       | —                                      | [Product Strategy v1.0](./product-strategy.md)                                                      |
 
 ---
 
