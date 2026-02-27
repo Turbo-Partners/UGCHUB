@@ -187,8 +187,8 @@ export function registerUserRoutes(app: Express): void {
   app.get('/api/users/:userId/rating', async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
-      // TODO: implement getUserAverageRating
-      res.json({ average: 0, count: 0 });
+      const result = await storage.getCreatorAverageRating(userId);
+      res.json(result);
     } catch (error) {
       console.error('[API] Error fetching user rating:', error);
       res.status(500).json({ error: 'Erro ao buscar avaliação' });
@@ -198,11 +198,45 @@ export function registerUserRoutes(app: Express): void {
   app.get('/api/users/:userId/reviews', async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
-      // TODO: implement getUserReceivedReviews
-      res.json([]);
+      const reviews = await storage.getCreatorReviews(userId);
+      res.json(reviews);
     } catch (error) {
       console.error('[API] Error fetching user reviews:', error);
       res.status(500).json({ error: 'Erro ao buscar avaliações' });
+    }
+  });
+
+  app.post('/api/users/:userId/reviews', async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== 'company') return res.sendStatus(403);
+
+    try {
+      const creatorId = parseInt(req.params.userId);
+      const companyId = req.session.activeCompanyId;
+      if (!companyId) return res.status(400).json({ error: 'Empresa não selecionada' });
+
+      const { rating, comment, campaignId } = req.body;
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: 'Rating deve ser entre 1 e 5' });
+      }
+
+      const existing = await storage.getExistingReview(companyId, creatorId, campaignId || null);
+      if (existing) {
+        const updated = await storage.updateCreatorReview(existing.id, { rating, comment });
+        return res.json(updated);
+      }
+
+      const review = await storage.createCreatorReview({
+        creatorId,
+        companyId,
+        campaignId: campaignId || null,
+        rating,
+        comment: comment || null,
+      });
+      res.status(201).json(review);
+    } catch (error) {
+      console.error('[API] Error creating review:', error);
+      res.status(500).json({ error: 'Erro ao criar avaliação' });
     }
   });
 
@@ -319,7 +353,7 @@ Por favor, analise e responda em português brasileiro com:
 Seja conciso e direto, focando em insights acionáveis.`;
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',

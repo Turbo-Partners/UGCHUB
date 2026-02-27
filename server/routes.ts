@@ -19,6 +19,8 @@ import {
   instagramAccounts,
   brandCreatorMemberships,
   instagramProfiles,
+  creatorReviews,
+  deliverables,
 } from '@shared/schema';
 import { z } from 'zod';
 import multer from 'multer';
@@ -36,7 +38,7 @@ import { objectStorageClient, registerObjectStorageRoutes } from './lib/object-s
 import { savePostThumbnail } from './lib/image-storage';
 import { sendGeminiMessage } from './lib/gemini';
 import { db } from './db';
-import { eq, and, lte, desc, sql } from 'drizzle-orm';
+import { eq, and, lte, gte, desc, sql, inArray, ilike, or, isNotNull } from 'drizzle-orm';
 import { registerModularRoutes } from './routes/index';
 import { tryBusinessDiscoveryForProfile } from './services/business-discovery';
 import {
@@ -331,61 +333,136 @@ Crawl-delay: 1
   app.get('/api/creators/discovery-stats', async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== 'company') return res.sendStatus(403);
     try {
-      const allCreators = await storage.getCreators();
+      // Parse query params for filtering and pagination
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
+      const query = ((req.query.query as string) || '').trim().toLowerCase();
+      const niche = ((req.query.niche as string) || '').trim();
+      const minFollowers = parseInt(req.query.minFollowers as string) || 0;
+      const maxFollowers = parseInt(req.query.maxFollowers as string) || 0;
+      const offset = (page - 1) * limit;
 
-      const creatorsWithSocial = allCreators.filter((creator) => {
-        const hasInstagram = creator.instagram && creator.instagram.trim().length > 0;
-        const hasTiktok = (creator as any).tiktok && (creator as any).tiktok.trim().length > 0;
-        return hasInstagram || hasTiktok;
-      });
+      // Build WHERE conditions for SQL query
+      const conditions = [
+        eq(users.role, 'creator'),
+        or(
+          and(isNotNull(users.instagram), sql`length(trim(${users.instagram})) > 0`),
+          and(isNotNull(users.tiktok), sql`length(trim(${users.tiktok})) > 0`),
+        )!,
+      ];
 
-      const validatedProfiles = await db
+      if (query) {
+        conditions.push(or(ilike(users.name, `%${query}%`), ilike(users.instagram, `%${query}%`))!);
+      }
+
+      if (minFollowers > 0) {
+        conditions.push(gte(users.instagramFollowers, minFollowers));
+      }
+      if (maxFollowers > 0) {
+        conditions.push(lte(users.instagramFollowers, maxFollowers));
+      }
+
+      if (niche && niche !== 'all') {
+        conditions.push(sql`${users.niche}::text[] && ARRAY[${niche}]::text[]`);
+      }
+
+      // Single efficient query with LEFT JOINs
+      const baseQuery = db
         .select({
-          userId: instagramProfiles.userId,
-          followers: instagramProfiles.followers,
-          username: instagramProfiles.username,
+          id: users.id,
+          name: users.name,
+          avatar: users.avatar,
+          instagram: users.instagram,
+          instagramFollowers: users.instagramFollowers,
+          instagramFollowing: users.instagramFollowing,
+          instagramPosts: users.instagramPosts,
+          city: users.city,
+          state: users.state,
+          niche: users.niche,
+          igFollowers: instagramProfiles.followers,
+          igUsername: instagramProfiles.username,
         })
-        .from(instagramProfiles)
-        .where(eq(instagramProfiles.ownerType, 'user'));
+        .from(users)
+        .leftJoin(
+          instagramProfiles,
+          and(eq(instagramProfiles.userId, users.id), eq(instagramProfiles.ownerType, 'user')),
+        )
+        .where(and(...conditions));
 
-      const validatedMap = new Map(validatedProfiles.map((p) => [p.userId, p]));
+      // Get total count for pagination
+      const [{ total }] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(baseQuery.as('filtered_creators'));
 
-      const validCreators = creatorsWithSocial.filter((creator) => {
-        const hasInstagram = creator.instagram && creator.instagram.trim().length > 0;
-        if (!hasInstagram) return true;
+      // Get paginated results
+      const creatorsRaw = await baseQuery
+        .orderBy(desc(users.instagramFollowers))
+        .limit(limit)
+        .offset(offset);
 
-        const validated = validatedMap.get(creator.id);
-        if (validated && validated.followers === null) {
+      // Filter out invalid profiles (validated with null followers = invalid)
+      const validCreators = creatorsRaw.filter((c) => {
+        if (
+          c.instagram &&
+          c.instagram.trim().length > 0 &&
+          c.igUsername &&
+          c.igFollowers === null
+        ) {
           return false;
         }
-
         return true;
       });
 
-      const campaignCounts = await db
-        .select({
-          creatorId: applications.creatorId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(applications)
-        .where(eq(applications.status, 'accepted'))
-        .groupBy(applications.creatorId);
+      // Batch fetch campaign counts, community counts, and ratings
+      const creatorIds = validCreators.map((c) => c.id);
+      if (creatorIds.length === 0) {
+        return res.json({ data: [], total: 0, page, totalPages: 0 });
+      }
 
-      const communityCounts = await db
-        .select({
-          creatorId: brandCreatorMemberships.creatorId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(brandCreatorMemberships)
-        .where(eq(brandCreatorMemberships.status, 'active'))
-        .groupBy(brandCreatorMemberships.creatorId);
+      const [campaignCounts, communityCounts, ratingStats] = await Promise.all([
+        db
+          .select({
+            creatorId: applications.creatorId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(applications)
+          .where(
+            and(eq(applications.status, 'accepted'), inArray(applications.creatorId, creatorIds)),
+          )
+          .groupBy(applications.creatorId),
+        db
+          .select({
+            creatorId: brandCreatorMemberships.creatorId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(brandCreatorMemberships)
+          .where(
+            and(
+              eq(brandCreatorMemberships.status, 'active'),
+              inArray(brandCreatorMemberships.creatorId, creatorIds),
+            ),
+          )
+          .groupBy(brandCreatorMemberships.creatorId),
+        db
+          .select({
+            creatorId: creatorReviews.creatorId,
+            average: sql<number>`AVG(${creatorReviews.rating})::numeric(3,2)`,
+            count: sql<number>`COUNT(*)::int`,
+          })
+          .from(creatorReviews)
+          .where(inArray(creatorReviews.creatorId, creatorIds))
+          .groupBy(creatorReviews.creatorId),
+      ]);
 
       const campaignMap = new Map(campaignCounts.map((c) => [c.creatorId, c.count]));
       const communityMap = new Map(communityCounts.map((c) => [c.creatorId, c.count]));
+      const ratingMap = new Map(
+        ratingStats.map((r) => [r.creatorId, { average: Number(r.average), count: r.count }]),
+      );
 
-      const result = validCreators.map((creator) => {
-        const validated = validatedMap.get(creator.id);
-        const followers = validated?.followers ?? creator.instagramFollowers;
+      const data = validCreators.map((creator) => {
+        const followers = creator.igFollowers ?? creator.instagramFollowers;
+        const rating = ratingMap.get(creator.id);
 
         return {
           id: creator.id,
@@ -395,21 +472,20 @@ Crawl-delay: 1
           instagramFollowers: followers,
           instagramFollowing: creator.instagramFollowing,
           instagramPosts: creator.instagramPosts,
-          instagramValidated: !!validated,
+          instagramValidated: !!creator.igUsername,
           city: creator.city,
           state: creator.state,
           niche: creator.niche,
           campaignsCount: campaignMap.get(creator.id) || 0,
           communitiesCount: communityMap.get(creator.id) || 0,
+          averageRating: rating?.average || 0,
+          reviewsCount: rating?.count || 0,
         };
       });
 
       // Background: validate unvalidated Instagram profiles (up to 5 at a time, free API)
-      const unvalidated = creatorsWithSocial
-        .filter((c) => {
-          const hasIg = c.instagram && c.instagram.trim().length > 0;
-          return hasIg && !validatedMap.has(c.id);
-        })
+      const unvalidated = validCreators
+        .filter((c) => c.instagram && c.instagram.trim().length > 0 && !c.igUsername)
         .slice(0, 5);
 
       if (unvalidated.length > 0) {
@@ -439,7 +515,7 @@ Crawl-delay: 1
                     lastFetchedAt: new Date(),
                   });
                 } catch (insertErr) {
-                  // Profile já existe, ignorar
+                  // Profile already exists, ignore
                 }
 
                 if (bdResult.followers !== undefined) {
@@ -467,7 +543,7 @@ Crawl-delay: 1
                     lastFetchedAt: new Date(),
                   });
                 } catch (insertErr) {
-                  // Profile já existe, ignorar
+                  // Profile already exists, ignore
                 }
 
                 await db
@@ -487,7 +563,8 @@ Crawl-delay: 1
         });
       }
 
-      res.json(result);
+      const totalPages = Math.ceil(total / limit);
+      res.json({ data, total, page, totalPages });
     } catch (error) {
       console.error('[Discovery Stats] Error:', error);
       res.status(500).json({ error: 'Erro ao buscar dados' });
@@ -504,12 +581,38 @@ Crawl-delay: 1
         return res.sendStatus(404);
       }
 
+      // Resolve profile pic: GCS-stored > instagramProfilePic > avatar
+      let profilePicUrl: string | null = null;
+      if (user.instagram) {
+        const handle = user.instagram.replace('@', '').trim().toLowerCase();
+        const [igProfile] = await db
+          .select({ storagePath: instagramProfiles.profilePicStoragePath })
+          .from(instagramProfiles)
+          .where(
+            and(eq(instagramProfiles.username, handle), eq(instagramProfiles.ownerType, 'user')),
+          )
+          .limit(1);
+        if (igProfile?.storagePath) {
+          profilePicUrl = `/api/storage/public/${igProfile.storagePath}`;
+        }
+      }
+      if (
+        !profilePicUrl &&
+        user.instagramProfilePic &&
+        user.instagramProfilePic.startsWith('/api/storage/')
+      ) {
+        profilePicUrl = user.instagramProfilePic;
+      }
+      if (!profilePicUrl && user.avatar) {
+        profilePicUrl = user.avatar;
+      }
+
       // Fetch completed partnerships (campaigns with workflowStatus = 'entregue')
       const completedApplicationsRaw = await db
         .select({
           appId: applications.id,
           appCampaignId: applications.campaignId,
-          appCompletedAt: applications.appliedAt,
+          appAppliedAt: applications.appliedAt,
           campaignId: campaigns.id,
           campaignTitle: campaigns.title,
           campaignCompanyId: campaigns.companyId,
@@ -528,7 +631,7 @@ Crawl-delay: 1
       const completedApplications = completedApplicationsRaw.map((row) => ({
         id: row.appId,
         campaignId: row.appCampaignId,
-        completedAt: row.appCompletedAt,
+        completedAt: row.appAppliedAt,
         campaign: {
           id: row.campaignId,
           title: row.campaignTitle,
@@ -556,12 +659,44 @@ Crawl-delay: 1
         [] as { id: number; name: string; logo: string | null }[],
       );
 
+      // Fetch portfolio: deliverables from completed applications
+      const completedAppIds = completedApplications.map((a) => a.id);
+      let portfolio: {
+        id: number;
+        url: string;
+        type: string;
+        title: string | null;
+        createdAt: Date;
+      }[] = [];
+      if (completedAppIds.length > 0) {
+        const portfolioItems = await db
+          .select({
+            id: deliverables.id,
+            url: deliverables.fileUrl,
+            type: deliverables.fileType,
+            title: deliverables.description,
+            createdAt: deliverables.uploadedAt,
+          })
+          .from(deliverables)
+          .where(inArray(deliverables.applicationId, completedAppIds))
+          .orderBy(desc(deliverables.uploadedAt))
+          .limit(12);
+        portfolio = portfolioItems.map((p) => ({
+          id: p.id,
+          url: p.url,
+          type: p.type || 'image',
+          title: p.title,
+          createdAt: p.createdAt,
+        }));
+      }
+
       // Return only public-facing information (NO sensitive data like email, phone, CPF, PIX)
       const publicProfile = {
         id: user.id,
         name: user.name,
         bio: user.bio,
         avatar: user.avatar,
+        profilePicUrl,
         niche: user.niche,
         gender: user.gender,
         city: user.city,
@@ -589,7 +724,7 @@ Crawl-delay: 1
             completedAt: app.completedAt,
           })),
         },
-        portfolio: [],
+        portfolio,
       };
 
       res.json(publicProfile);
@@ -642,8 +777,7 @@ Crawl-delay: 1
         return res.sendStatus(404);
       }
 
-      // TODO: implement getUserAverageRating
-      const rating = 0;
+      const rating = await storage.getCreatorAverageRating(id);
       res.json(rating);
     } catch (error) {
       console.error('[API] Error fetching public creator rating:', error);
@@ -3424,11 +3558,9 @@ Crawl-delay: 1
         const members = await storage.getCompanyMembers(companyId);
         const ownerCount = members.filter((m) => m.role === 'owner').length;
         if (ownerCount <= 1) {
-          return res
-            .status(400)
-            .json({
-              error: 'Não é possível remover o único proprietário. Promova outro membro primeiro.',
-            });
+          return res.status(400).json({
+            error: 'Não é possível remover o único proprietário. Promova outro membro primeiro.',
+          });
         }
       }
 
@@ -7451,11 +7583,9 @@ Seja específico, prático e focado em técnicas de criação de conteúdo. NUNC
 
     // Validate required fields
     if (!companyId || !creatorId || !eventType || !eventRefId || !refType || refId === undefined) {
-      return res
-        .status(400)
-        .json({
-          error: 'Campos obrigatórios: companyId, creatorId, eventType, eventRefId, refType, refId',
-        });
+      return res.status(400).json({
+        error: 'Campos obrigatórios: companyId, creatorId, eventType, eventRefId, refType, refId',
+      });
     }
 
     const entry = await storage.recordGamificationEvent(

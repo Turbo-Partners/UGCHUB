@@ -52,6 +52,8 @@ import StarRating from '@/components/StarRating';
 import { InviteToCampaignModal } from '@/components/InviteToCampaignModal';
 import { InstagramAvatar } from '@/components/instagram-avatar';
 import { lazy, Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ReviewModal } from '@/components/review-modal';
 const CreatorDeepAnalysis = lazy(() => import('@/pages/company/creator-deep-analysis'));
 
 function formatNumber(num: number | null | undefined): string {
@@ -116,6 +118,19 @@ type CommunityMembership = {
   points: number;
 };
 
+type CreatorReviewData = {
+  id: number;
+  creatorId: number;
+  companyId: number;
+  campaignId: number | null;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  companyName: string;
+  campaignTitle: string | null;
+};
+
 type RatingData = {
   average: number;
   count: number;
@@ -150,6 +165,17 @@ export default function CreatorProfileView({
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [failedThumbs, setFailedThumbs] = useState<Set<number>>(new Set());
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+
+  const { data: creatorReviews = [] } = useQuery<CreatorReviewData[]>({
+    queryKey: [`/api/users/${creator.id}/reviews`],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${creator.id}/reviews`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !isPublic,
+  });
 
   // Accept any valid profile pic URL (except dicebear fallbacks)
   const instagramPicUrl =
@@ -680,6 +706,86 @@ export default function CreatorProfileView({
                     </div>
                   </div>
                 )}
+
+                {/* Reviews section (company view only) */}
+                {!isPublic && (
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium flex items-center gap-2">
+                        <Star className="h-4 w-4 text-amber-500" />
+                        Avaliacoes
+                        {creatorReviews.length > 0 && (
+                          <Badge variant="secondary" className="ml-1">
+                            {creatorReviews.length}
+                          </Badge>
+                        )}
+                      </h4>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReviewModalOpen(true)}
+                        data-testid="button-open-review-modal"
+                      >
+                        <Star className="h-3.5 w-3.5 mr-1" />
+                        Avaliar
+                      </Button>
+                    </div>
+                    {creatorReviews.length > 0 ? (
+                      <div className="space-y-2">
+                        {creatorReviews.slice(0, 3).map((review) => (
+                          <div
+                            key={review.id}
+                            className="flex items-start gap-3 p-3 rounded-lg border bg-amber-50/50 dark:bg-amber-950/20"
+                            data-testid={`review-item-${review.id}`}
+                          >
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              <Building2 className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{review.companyName}</span>
+                                <div className="flex items-center gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <Star
+                                      key={s}
+                                      className={`h-3 w-3 ${
+                                        s <= review.rating
+                                          ? 'fill-yellow-400 text-yellow-400'
+                                          : 'text-gray-300'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              {review.comment && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                  {review.comment}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(review.createdAt).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {creatorReviews.length > 3 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-muted-foreground"
+                            onClick={() => setReviewModalOpen(true)}
+                          >
+                            Ver todas ({creatorReviews.length})
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma avaliacao ainda. Seja o primeiro a avaliar!
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1039,12 +1145,20 @@ export default function CreatorProfileView({
       </div>
 
       {!isPublic && creator && (
-        <InviteToCampaignModal
-          open={inviteModalOpen}
-          onOpenChange={setInviteModalOpen}
-          creatorId={creator.id}
-          creatorName={creator.name}
-        />
+        <>
+          <InviteToCampaignModal
+            open={inviteModalOpen}
+            onOpenChange={setInviteModalOpen}
+            creatorId={creator.id}
+            creatorName={creator.name}
+          />
+          <ReviewModal
+            open={reviewModalOpen}
+            onOpenChange={setReviewModalOpen}
+            creatorId={creator.id}
+            creatorName={creator.name}
+          />
+        </>
       )}
 
       <Dialog open={postModalOpen} onOpenChange={setPostModalOpen}>

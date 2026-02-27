@@ -730,12 +730,10 @@ export function registerInstagramRoutes(app: Express) {
       }
 
       if (!pagesData.data || pagesData.data.length === 0) {
-        return res
-          .status(400)
-          .json({
-            error:
-              'Nenhuma página do Facebook encontrada. Você precisa ter uma Página vinculada à sua conta Instagram Business.',
-          });
+        return res.status(400).json({
+          error:
+            'Nenhuma página do Facebook encontrada. Você precisa ter uma Página vinculada à sua conta Instagram Business.',
+        });
       }
 
       let connectedAccount = null;
@@ -786,11 +784,9 @@ export function registerInstagramRoutes(app: Express) {
                 'got:',
                 tokenUserId,
               );
-              return res
-                .status(400)
-                .json({
-                  error: 'O token fornecido pertence a uma conta do Facebook diferente da original',
-                });
+              return res.status(400).json({
+                error: 'O token fornecido pertence a uma conta do Facebook diferente da original',
+              });
             }
 
             await instagramService.updateInstagramAccount(existingAccount.id, {
@@ -3337,7 +3333,9 @@ export function registerInstagramRoutes(app: Express) {
           if (u.instagram) {
             const key = u.instagram.replace('@', '').toLowerCase().trim();
             const url = u.pic || u.avatar;
-            if (url) pics[key] = url;
+            if (url) {
+              pics[key] = url;
+            }
           }
         }
       }

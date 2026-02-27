@@ -158,6 +158,9 @@ import {
   type InsertBrandCreatorMembership,
   type CommunityInvite,
   type InsertCommunityInvite,
+  creatorReviews,
+  type CreatorReview,
+  type InsertCreatorReview,
   type CampaignPointsRules,
   type InsertCampaignPointsRules,
   type CreatorDiscoveryProfile,
@@ -526,6 +529,23 @@ export interface IStorage {
       points: number;
     }[]
   >;
+
+  // Creator Reviews
+  createCreatorReview(review: InsertCreatorReview): Promise<CreatorReview>;
+  updateCreatorReview(
+    id: number,
+    data: Partial<Pick<CreatorReview, 'rating' | 'comment'>>,
+  ): Promise<CreatorReview>;
+  deleteCreatorReview(id: number): Promise<void>;
+  getCreatorAverageRating(creatorId: number): Promise<{ average: number; count: number }>;
+  getCreatorReviews(
+    creatorId: number,
+  ): Promise<(CreatorReview & { companyName: string; campaignTitle: string | null })[]>;
+  getExistingReview(
+    companyId: number,
+    creatorId: number,
+    campaignId?: number | null,
+  ): Promise<CreatorReview | undefined>;
 
   // Deep Analytics Operations
   upsertCreatorPost(post: InsertCreatorPost): Promise<CreatorPost>;
@@ -7380,6 +7400,81 @@ export class DatabaseStorage implements IStorage {
     if (tagIds.length > 0) {
       await db.insert(campaignTags).values(tagIds.map((tagId) => ({ campaignId, tagId })));
     }
+  }
+
+  // Creator Reviews
+  async createCreatorReview(review: InsertCreatorReview): Promise<CreatorReview> {
+    const [created] = await db.insert(creatorReviews).values(review).returning();
+    return created;
+  }
+
+  async updateCreatorReview(
+    id: number,
+    data: Partial<Pick<CreatorReview, 'rating' | 'comment'>>,
+  ): Promise<CreatorReview> {
+    const [updated] = await db
+      .update(creatorReviews)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(creatorReviews.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCreatorReview(id: number): Promise<void> {
+    await db.delete(creatorReviews).where(eq(creatorReviews.id, id));
+  }
+
+  async getCreatorAverageRating(creatorId: number): Promise<{ average: number; count: number }> {
+    const [result] = await db
+      .select({
+        average: sql<number>`COALESCE(AVG(${creatorReviews.rating})::numeric(3,2), 0)`,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(creatorReviews)
+      .where(eq(creatorReviews.creatorId, creatorId));
+    return { average: Number(result.average), count: result.count };
+  }
+
+  async getCreatorReviews(
+    creatorId: number,
+  ): Promise<(CreatorReview & { companyName: string; campaignTitle: string | null })[]> {
+    const results = await db
+      .select({
+        review: creatorReviews,
+        companyName: companies.name,
+        campaignTitle: campaigns.title,
+      })
+      .from(creatorReviews)
+      .innerJoin(companies, eq(creatorReviews.companyId, companies.id))
+      .leftJoin(campaigns, eq(creatorReviews.campaignId, campaigns.id))
+      .where(eq(creatorReviews.creatorId, creatorId))
+      .orderBy(desc(creatorReviews.createdAt));
+    return results.map((r) => ({
+      ...r.review,
+      companyName: r.companyName,
+      campaignTitle: r.campaignTitle,
+    }));
+  }
+
+  async getExistingReview(
+    companyId: number,
+    creatorId: number,
+    campaignId?: number | null,
+  ): Promise<CreatorReview | undefined> {
+    const conditions = [
+      eq(creatorReviews.companyId, companyId),
+      eq(creatorReviews.creatorId, creatorId),
+    ];
+    if (campaignId) {
+      conditions.push(eq(creatorReviews.campaignId, campaignId));
+    } else {
+      conditions.push(isNull(creatorReviews.campaignId));
+    }
+    const [existing] = await db
+      .select()
+      .from(creatorReviews)
+      .where(and(...conditions));
+    return existing;
   }
 }
 

@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  Instagram, 
-  Users, 
-  MapPin, 
-  TrendingUp, 
-  Hash, 
-  ExternalLink, 
+import {
+  Instagram,
+  Users,
+  MapPin,
+  TrendingUp,
+  Hash,
+  ExternalLink,
   Heart,
   MessageCircle,
   Star,
@@ -24,7 +24,7 @@ import {
   Play,
   Award,
   ArrowRight,
-  Globe
+  Globe,
 } from 'lucide-react';
 import type { User, CreatorPost } from '@shared/schema';
 import { getPublicAvatarUrl } from '@/lib/utils';
@@ -55,6 +55,7 @@ type PortfolioAsset = {
 };
 
 type PublicCreatorProfile = User & {
+  profilePicUrl?: string | null;
   partnerships?: {
     count: number;
     partners: { id: number; name: string; logo: string | null }[];
@@ -85,10 +86,14 @@ function formatEngagementRate(rate: string | number | null | undefined): string 
 export default function PublicCreatorProfile() {
   const [match, params] = useRoute('/public/creator/:id');
   const [_, navigate] = useLocation();
-  
+
   const creatorId = params?.id ? parseInt(params.id) : null;
 
-  const { data: creator, isLoading, error } = useQuery<PublicCreatorProfile>({
+  const {
+    data: creator,
+    isLoading,
+    error,
+  } = useQuery<PublicCreatorProfile>({
     queryKey: [`/api/public/creator/${creatorId}`],
     queryFn: async () => {
       const res = await fetch(`/api/public/creator/${creatorId}`);
@@ -128,13 +133,32 @@ export default function PublicCreatorProfile() {
     enabled: !!creatorId,
   });
 
+  const { data: reviews = [] } = useQuery<
+    {
+      id: number;
+      rating: number;
+      comment: string | null;
+      companyName: string;
+      campaignTitle: string | null;
+      createdAt: string;
+    }[]
+  >({
+    queryKey: [`/api/users/${creatorId}/reviews`],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${creatorId}/reviews`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!creatorId,
+  });
+
   // Force light theme
   useEffect(() => {
     const html = document.documentElement;
     const previousTheme = html.classList.contains('dark') ? 'dark' : 'light';
     html.classList.remove('dark');
     html.classList.add('light');
-    
+
     return () => {
       html.classList.remove('light');
       if (previousTheme === 'dark') {
@@ -146,11 +170,11 @@ export default function PublicCreatorProfile() {
   // Update meta tags
   useEffect(() => {
     if (!creator) return;
-    
+
     document.title = `${creator.name} - Criador de Conteúdo | CreatorConnect`;
-    
+
     const createdMetas: HTMLMetaElement[] = [];
-    
+
     const updateMeta = (property: string, content: string, isOg = false) => {
       const attr = isOg ? 'property' : 'name';
       let meta = document.querySelector(`meta[${attr}="${property}"]`) as HTMLMetaElement;
@@ -162,10 +186,14 @@ export default function PublicCreatorProfile() {
       }
       meta.content = content;
     };
-    
-    const description = creator.bio || `${creator.name} é um criador de conteúdo verificado com ${formatNumber(creator.instagramFollowers)} seguidores no Instagram.`;
-    const imageUrl = creator.avatar ? getPublicAvatarUrl(creator.avatar) : 'https://creatorconnect.com.br/og-default.png';
-    
+
+    const description =
+      creator.bio ||
+      `${creator.name} é um criador de conteúdo verificado com ${formatNumber(creator.instagramFollowers)} seguidores no Instagram.`;
+    const imageUrl = creator.avatar
+      ? getPublicAvatarUrl(creator.avatar)
+      : 'https://creatorconnect.com.br/og-default.png';
+
     updateMeta('description', description);
     updateMeta('og:type', 'profile', true);
     updateMeta('og:title', `${creator.name} - Criador de Conteúdo`, true);
@@ -177,10 +205,10 @@ export default function PublicCreatorProfile() {
     updateMeta('twitter:title', `${creator.name} - Criador de Conteúdo`);
     updateMeta('twitter:description', description);
     updateMeta('twitter:image', imageUrl);
-    
+
     return () => {
       document.title = 'CreatorConnect';
-      createdMetas.forEach(meta => meta.remove());
+      createdMetas.forEach((meta) => meta.remove());
     };
   }, [creator]);
 
@@ -207,7 +235,11 @@ export default function PublicCreatorProfile() {
           </div>
           <h2 className="text-3xl font-bold mb-3">Criador não encontrado</h2>
           <p className="text-white/60 mb-8">Este perfil não está disponível ou foi removido.</p>
-          <Button onClick={() => navigate('/')} size="lg" className="bg-white text-black hover:bg-white/90">
+          <Button
+            onClick={() => navigate('/')}
+            size="lg"
+            className="bg-white text-black hover:bg-white/90"
+          >
             Voltar para Início
           </Button>
         </div>
@@ -215,7 +247,11 @@ export default function PublicCreatorProfile() {
     );
   }
 
-  const avatarUrl = creator.avatar ? getPublicAvatarUrl(creator.avatar) : undefined;
+  const avatarUrl = creator.profilePicUrl
+    ? getPublicAvatarUrl(creator.profilePicUrl)
+    : creator.avatar
+      ? getPublicAvatarUrl(creator.avatar)
+      : undefined;
   const partnershipsCount = creator.partnerships?.count || 0;
   const partnersCount = creator.partnerships?.partners?.length || 0;
   const completedCampaigns = creator.partnerships?.campaigns || [];
@@ -228,7 +264,7 @@ export default function PublicCreatorProfile() {
         {/* Animated Background */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-900/50 via-black to-pink-900/30" />
-          <div 
+          <div
             className="absolute inset-0 opacity-30"
             style={{
               backgroundImage: `radial-gradient(circle at 20% 50%, rgba(168, 85, 247, 0.4) 0%, transparent 50%),
@@ -237,7 +273,7 @@ export default function PublicCreatorProfile() {
             }}
           />
           {/* Mesh grid pattern */}
-          <div 
+          <div
             className="absolute inset-0 opacity-20"
             style={{
               backgroundImage: `linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
@@ -271,24 +307,23 @@ export default function PublicCreatorProfile() {
             <span className="text-sm font-medium text-white/90">Perfil Verificado</span>
             <CheckCircle2 className="w-4 h-4 text-green-400" />
           </div>
-          
+
           {/* Name */}
           <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
             {creator.name}
           </h1>
-          
+
           {/* Handle & Location */}
           <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
             {creator.instagram && (
-              <a 
+              <a
                 href={`https://instagram.com/${creator.instagram.replace('@', '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-white/70 hover:text-pink-400 transition-colors"
                 data-testid="link-instagram"
               >
-                <Instagram className="h-5 w-5" />
-                @{creator.instagram.replace('@', '')}
+                <Instagram className="h-5 w-5" />@{creator.instagram.replace('@', '')}
               </a>
             )}
             {creator.city && creator.state && (
@@ -298,13 +333,13 @@ export default function PublicCreatorProfile() {
               </span>
             )}
           </div>
-          
+
           {/* Niches */}
           {creator.niche && creator.niche.length > 0 && (
             <div className="flex gap-2 flex-wrap justify-center mb-10">
               {creator.niche.map((n, i) => (
-                <Badge 
-                  key={i} 
+                <Badge
+                  key={i}
                   className="bg-white/10 text-white border-white/20 backdrop-blur-sm hover:bg-white/20 transition-colors px-4 py-1.5"
                 >
                   {n}
@@ -312,23 +347,26 @@ export default function PublicCreatorProfile() {
               ))}
             </div>
           )}
-          
+
           {/* Bio */}
           {creator.bio && (
             <p className="text-lg text-white/70 max-w-2xl mx-auto leading-relaxed mb-10">
               {creator.bio}
             </p>
           )}
-          
+
           {/* CTA Buttons */}
           <div className="flex flex-wrap gap-4 justify-center">
             {creator.instagram && (
-              <a 
+              <a
                 href={`https://instagram.com/${creator.instagram.replace('@', '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button size="lg" className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white border-0 px-8 h-12 text-base font-semibold gap-2">
+                <Button
+                  size="lg"
+                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white border-0 px-8 h-12 text-base font-semibold gap-2"
+                >
                   <Instagram className="h-5 w-5" />
                   Seguir no Instagram
                 </Button>
@@ -365,9 +403,7 @@ export default function PublicCreatorProfile() {
             </div>
             <div className="text-center p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
               <Building2 className="h-8 w-8 text-blue-400 mx-auto mb-3" />
-              <div className="text-3xl md:text-4xl font-bold text-white mb-1">
-                {partnersCount}
-              </div>
+              <div className="text-3xl md:text-4xl font-bold text-white mb-1">{partnersCount}</div>
               <div className="text-sm text-white/50 uppercase tracking-wider">Marcas Parceiras</div>
             </div>
           </div>
@@ -390,7 +426,7 @@ export default function PublicCreatorProfile() {
                 {creatorPosts.length} posts
               </Badge>
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {creatorPosts.slice(0, 6).map((post, i) => (
                 <a
@@ -402,11 +438,15 @@ export default function PublicCreatorProfile() {
                   data-testid={`card-top-post-${i}`}
                 >
                   <img
-                    src={post.thumbnailUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${post.postId}`}
+                    src={
+                      post.thumbnailUrl ||
+                      `https://api.dicebear.com/7.x/shapes/svg?seed=${post.postId}`
+                    }
                     alt={post.caption?.slice(0, 50) || `Post ${i + 1}`}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/shapes/svg?seed=${post.postId}`;
+                      (e.target as HTMLImageElement).src =
+                        `https://api.dicebear.com/7.x/shapes/svg?seed=${post.postId}`;
                     }}
                   />
                   {/* Gradient overlay always visible */}
@@ -451,7 +491,7 @@ export default function PublicCreatorProfile() {
                 {portfolioAssets.length} trabalhos
               </Badge>
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {portfolioAssets.slice(0, 6).map((asset, i) => (
                 <div
@@ -460,11 +500,7 @@ export default function PublicCreatorProfile() {
                 >
                   {asset.type === 'video' ? (
                     <>
-                      <video
-                        src={asset.url}
-                        className="w-full h-full object-cover"
-                        muted
-                      />
+                      <video src={asset.url} className="w-full h-full object-cover" muted />
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
                           <Play className="h-7 w-7 text-black ml-1" />
@@ -498,15 +534,21 @@ export default function PublicCreatorProfile() {
               <h2 className="text-3xl font-bold text-white mb-3">Marcas que Confiam</h2>
               <p className="text-white/50">Campanhas realizadas com sucesso</p>
             </div>
-            
+
             <div className="flex flex-wrap justify-center gap-6">
               {completedCampaigns.slice(0, 8).map((campaign, i) => (
-                <div 
+                <div
                   key={i}
                   className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pl-2 pr-5 py-2 hover:bg-white/10 transition-colors"
                 >
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={campaign.company?.logo ? getPublicAvatarUrl(campaign.company.logo) : undefined} />
+                    <AvatarImage
+                      src={
+                        campaign.company?.logo
+                          ? getPublicAvatarUrl(campaign.company.logo)
+                          : undefined
+                      }
+                    />
                     <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-600 text-white text-sm">
                       {campaign.company?.name?.[0] || 'C'}
                     </AvatarFallback>
@@ -529,8 +571,8 @@ export default function PublicCreatorProfile() {
             </h3>
             <div className="flex flex-wrap justify-center gap-3">
               {creator.instagramTopHashtags.slice(0, 12).map((tag, i) => (
-                <span 
-                  key={i} 
+                <span
+                  key={i}
                   className="text-white/60 hover:text-pink-400 transition-colors cursor-default"
                 >
                   #{tag}
@@ -552,13 +594,59 @@ export default function PublicCreatorProfile() {
               </div>
               <div className="flex justify-center gap-1 mb-3">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star 
-                    key={star} 
+                  <Star
+                    key={star}
                     className={`h-5 w-5 ${star <= Math.round(ratingData.average) ? 'text-amber-400 fill-amber-400' : 'text-white/20'}`}
                   />
                 ))}
               </div>
               <p className="text-white/50 text-sm">{ratingData.count} avaliação(ões) de marcas</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reviews / Testimonials */}
+      {reviews.length > 0 && (
+        <div className="py-16 border-t border-white/10">
+          <div className="max-w-4xl mx-auto px-6">
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-bold text-white mb-3 flex items-center justify-center gap-3">
+                <Star className="h-8 w-8 text-amber-400" />O que as Marcas Dizem
+              </h2>
+              <p className="text-white/50">Depoimentos de empresas parceiras</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reviews.slice(0, 4).map((review) => (
+                <div
+                  key={review.id}
+                  className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm"
+                  data-testid={`public-review-${review.id}`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-white/40" />
+                      <span className="text-white font-medium text-sm">{review.companyName}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-4 w-4 ${
+                            s <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-white/20'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {review.comment && (
+                    <p className="text-white/70 text-sm leading-relaxed">"{review.comment}"</p>
+                  )}
+                  {review.campaignTitle && (
+                    <p className="text-white/40 text-xs mt-2">Campanha: {review.campaignTitle}</p>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -32,9 +32,13 @@ npm run build            # Build (Vite → dist/public, esbuild → dist/index.j
 npm run start            # Production (cross-env NODE_ENV=production node dist/index.js)
 npm run check            # TypeScript check (tsc com noEmit via tsconfig)
 npm run db:push          # Push schema → database (drizzle-kit push)
-npm run test             # vitest run (47 tests, 4 files)
+npm run test             # vitest run (57 tests, 5 files)
 npm run test:watch       # vitest watch mode
 ```
+
+## Workflow
+
+See `docs/WORKFLOW.md` for development workflow (task lifecycle, agent orchestration, commit protocol, session continuity).
 
 ## Architecture
 
@@ -379,11 +383,12 @@ const isAdminByEmail = email.endsWith('@turbopartners.com.br');
 
 **Framework**: Vitest 4.0 + Supertest 7.2 | **Config**: `vitest.config.ts` | **Run**: `npm run test` ou `npm run test:watch`
 
-**4 test files** em `server/__tests__/` (47 tests total):
+**5 test files** em `server/__tests__/` (57 tests total):
 
 - `auth.test.ts` (8 tests) — register, login, logout, user update, sessão
 - `brand-canvas.test.ts` (25 tests) — pipeline steps (CNPJ, website, visual, social, voice, synthesis), API endpoints, job scheduling
 - `messaging.test.ts` (8 tests) — DM sync, profile pic hierarchy, rate limiting, batch operations
+- `reviews.test.ts` (10 tests) — CRUD reviews, permissões (401/403), validação rating, endpoint público, upsert
 - `stripe.test.ts` (6 tests) — status, checkout creation, webhook validation, error handling
 
 **Test helpers** (`server/__tests__/setup.ts`):

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
@@ -50,6 +50,7 @@ import {
   ChevronRight,
   LayoutGrid,
   List,
+  Star,
 } from 'lucide-react';
 import { getAvatarUrl } from '@/lib/utils';
 import type { CreatorDiscoveryProfile } from '@shared/schema';
@@ -83,10 +84,28 @@ interface CreatorDiscoveryStat {
   niche: string[] | null;
   campaignsCount: number;
   communitiesCount: number;
+  averageRating: number;
+  reviewsCount: number;
   instagramValidated?: boolean;
 }
 
+type DiscoveryResponse = {
+  data: CreatorDiscoveryStat[];
+  total: number;
+  page: number;
+  totalPages: number;
+};
+
 const ITEMS_PER_PAGE = 25;
+
+function useDebounce(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function CreatorDiscoveryPage() {
   const queryClient = useQueryClient();
@@ -98,6 +117,7 @@ export default function CreatorDiscoveryPage() {
   const [nicheFilter, setNicheFilter] = useState<string>('all');
   const [minFollowers, setMinFollowers] = useState<string>('');
   const [maxFollowers, setMaxFollowers] = useState<string>('');
+  const debouncedSearch = useDebounce(platformSearch, 300);
 
   const [discoverySearch, setDiscoverySearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -111,14 +131,36 @@ export default function CreatorDiscoveryPage() {
   const [communityInviting, setCommunityInviting] = useState<number | null>(null);
   const [batchPicUrls, setBatchPicUrls] = useState<Map<string, string>>(new Map());
 
-  const { data: creators = [], isLoading: loadingCreators } = useQuery<CreatorDiscoveryStat[]>({
-    queryKey: ['/api/creators/discovery-stats'],
+  // Build query params for backend pagination
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(currentPage));
+  queryParams.set('limit', String(ITEMS_PER_PAGE));
+  if (debouncedSearch) queryParams.set('query', debouncedSearch);
+  if (nicheFilter && nicheFilter !== 'all') queryParams.set('niche', nicheFilter);
+  if (minFollowers) queryParams.set('minFollowers', minFollowers);
+  if (maxFollowers) queryParams.set('maxFollowers', maxFollowers);
+
+  const { data: discoveryData, isLoading: loadingCreators } = useQuery<DiscoveryResponse>({
+    queryKey: [
+      '/api/creators/discovery-stats',
+      currentPage,
+      debouncedSearch,
+      nicheFilter,
+      minFollowers,
+      maxFollowers,
+    ],
     queryFn: async () => {
-      const res = await fetch('/api/creators/discovery-stats', { credentials: 'include' });
+      const res = await fetch(`/api/creators/discovery-stats?${queryParams.toString()}`, {
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Failed to fetch creators');
       return res.json();
     },
   });
+
+  const creators = discoveryData?.data || [];
+  const totalCreators = discoveryData?.total || 0;
+  const totalPages = discoveryData?.totalPages || 0;
 
   const { data: savedProfiles = [], isLoading: loadingSavedProfiles } = useQuery<
     CreatorDiscoveryProfile[]
@@ -148,7 +190,7 @@ export default function CreatorDiscoveryPage() {
             }, 30000);
           }
         })
-        .catch(() => {});
+        .catch((err) => console.error('[Discovery] Enrichment failed:', err));
     }
   }, [loadingCreators, creators.length]);
 
@@ -157,7 +199,15 @@ export default function CreatorDiscoveryPage() {
     if (!creators || creators.length === 0) return;
     const usernames = creators.filter((c) => c.instagram).map((c) => c.instagram!);
     if (usernames.length === 0) return;
-    batchFetchProfilePics(usernames).then(setBatchPicUrls);
+    batchFetchProfilePics(usernames).then((result) => {
+      setBatchPicUrls(result);
+      const found = result.size;
+      if (found < usernames.length * 0.5 && usernames.length > 5) {
+        setTimeout(() => {
+          batchFetchProfilePics(usernames).then(setBatchPicUrls);
+        }, 10000);
+      }
+    });
   }, [creators]);
 
   const saveProfileMutation = useMutation({
@@ -191,54 +241,6 @@ export default function CreatorDiscoveryPage() {
       toast.error('Erro ao salvar perfil');
     },
   });
-
-  const filteredCreators = useMemo(() => {
-    return creators.filter((creator) => {
-      if (
-        creator.instagram &&
-        !creator.instagramValidated &&
-        (!creator.instagramFollowers || creator.instagramFollowers === 0)
-      ) {
-        return false;
-      }
-
-      const matchesSearch =
-        platformSearch === '' ||
-        creator.name.toLowerCase().includes(platformSearch.toLowerCase()) ||
-        creator.instagram?.toLowerCase().includes(platformSearch.toLowerCase());
-
-      let matchesNiche = true;
-      if (nicheFilter !== 'all') {
-        if (!creator.niche || creator.niche.length === 0) {
-          matchesNiche = false;
-        } else {
-          matchesNiche = creator.niche.some(
-            (niche) => niche.toLowerCase() === nicheFilter.toLowerCase(),
-          );
-        }
-      }
-
-      let matchesMinFollowers = true;
-      if (minFollowers) {
-        const minNum = parseInt(minFollowers);
-        matchesMinFollowers = (creator.instagramFollowers || 0) >= minNum;
-      }
-
-      let matchesMaxFollowers = true;
-      if (maxFollowers) {
-        const maxNum = parseInt(maxFollowers);
-        matchesMaxFollowers = (creator.instagramFollowers || 0) <= maxNum;
-      }
-
-      return matchesSearch && matchesNiche && matchesMinFollowers && matchesMaxFollowers;
-    });
-  }, [creators, platformSearch, nicheFilter, minFollowers, maxFollowers]);
-
-  const totalPages = Math.ceil(filteredCreators.length / ITEMS_PER_PAGE);
-  const paginatedCreators = filteredCreators.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -346,13 +348,13 @@ export default function CreatorDiscoveryPage() {
           <TabsTrigger value="platform" data-testid="tab-platform">
             <CheckCircle className="h-4 w-4 mr-2" />
             Na Plataforma
-            {filteredCreators.length > 0 && (
+            {totalCreators > 0 && (
               <Badge
                 variant="secondary"
                 className="ml-2 text-[10px] px-1.5 py-0 h-5"
                 data-testid="badge-creators-count"
               >
-                {filteredCreators.length}
+                {totalCreators}
               </Badge>
             )}
           </TabsTrigger>
@@ -425,8 +427,7 @@ export default function CreatorDiscoveryPage() {
 
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground" data-testid="text-total-results">
-              {filteredCreators.length}{' '}
-              {filteredCreators.length === 1 ? 'criador encontrado' : 'criadores encontrados'}
+              {totalCreators} {totalCreators === 1 ? 'criador encontrado' : 'criadores encontrados'}
             </p>
             <div
               className="flex items-center gap-1 border rounded-lg p-0.5"
@@ -452,12 +453,35 @@ export default function CreatorDiscoveryPage() {
           </div>
 
           {loadingCreators ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"
+              data-testid="skeleton-grid"
+            >
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border/50 bg-card overflow-hidden animate-pulse"
+                >
+                  <div className="h-16 bg-muted" />
+                  <div className="pt-10 pb-3 px-3 flex flex-col items-center gap-2">
+                    <div className="h-4 w-24 bg-muted rounded" />
+                    <div className="h-3 w-16 bg-muted rounded" />
+                    <div className="h-3 w-12 bg-muted rounded" />
+                    <div className="h-5 w-20 bg-muted rounded-full" />
+                  </div>
+                  <div className="border-t border-border/40 h-10" />
+                </div>
+              ))}
             </div>
-          ) : filteredCreators.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground" data-testid="empty-platform">
-              Nenhum criador encontrado com os filtros selecionados.
+          ) : totalCreators === 0 ? (
+            <div className="text-center py-16" data-testid="empty-platform">
+              <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40" />
+              <h3 className="text-lg font-medium mb-2">Nenhum criador encontrado</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                {platformSearch || nicheFilter !== 'all' || minFollowers || maxFollowers
+                  ? 'Tente ajustar os filtros para encontrar mais criadores.'
+                  : 'Ainda nao ha criadores cadastrados na plataforma.'}
+              </p>
             </div>
           ) : (
             <>
@@ -466,7 +490,7 @@ export default function CreatorDiscoveryPage() {
                   className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"
                   data-testid="grid-platform-creators"
                 >
-                  {paginatedCreators.map((creator) => (
+                  {creators.map((creator) => (
                     <div
                       key={creator.id}
                       className="group relative rounded-xl border border-border/50 bg-gradient-to-b from-primary/5 via-card to-card overflow-hidden transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
@@ -530,30 +554,36 @@ export default function CreatorDiscoveryPage() {
                           </p>
                         )}
 
-                        {(creator.campaignsCount > 0 || creator.communitiesCount > 0) && (
-                          <div className="flex items-center gap-1.5 mt-2 flex-wrap justify-center">
-                            {creator.campaignsCount > 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px] px-1.5 py-0 h-5"
-                                data-testid={`text-campaigns-${creator.id}`}
-                              >
-                                {creator.campaignsCount}{' '}
-                                {creator.campaignsCount === 1 ? 'campanha' : 'campanhas'}
-                              </Badge>
-                            )}
-                            {creator.communitiesCount > 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px] px-1.5 py-0 h-5"
-                                data-testid={`text-communities-${creator.id}`}
-                              >
-                                {creator.communitiesCount}{' '}
-                                {creator.communitiesCount === 1 ? 'comunidade' : 'comunidades'}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap justify-center">
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 h-5"
+                            data-testid={`text-campaigns-${creator.id}`}
+                          >
+                            {creator.campaignsCount}{' '}
+                            {creator.campaignsCount === 1 ? 'campanha' : 'campanhas'}
+                          </Badge>
+                          {creator.communitiesCount > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0 h-5"
+                              data-testid={`text-communities-${creator.id}`}
+                            >
+                              {creator.communitiesCount}{' '}
+                              {creator.communitiesCount === 1 ? 'comunidade' : 'comunidades'}
+                            </Badge>
+                          )}
+                          {creator.reviewsCount > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 h-5 gap-0.5"
+                              data-testid={`text-rating-${creator.id}`}
+                            >
+                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                              {creator.averageRating.toFixed(1)}
+                            </Badge>
+                          )}
+                        </div>
 
                         {creator.instagram && (
                           <div className="flex items-center gap-1.5 mt-2">
@@ -625,11 +655,12 @@ export default function CreatorDiscoveryPage() {
                         <TableHead>Cidade/Estado</TableHead>
                         <TableHead>Nicho</TableHead>
                         <TableHead className="text-center">Campanhas</TableHead>
+                        <TableHead className="text-center">Nota</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedCreators.map((creator) => (
+                      {creators.map((creator) => (
                         <TableRow
                           key={creator.id}
                           className="group"
@@ -728,6 +759,18 @@ export default function CreatorDiscoveryPage() {
                               {creator.campaignsCount}
                             </span>
                           </TableCell>
+                          <TableCell className="text-center">
+                            {creator.reviewsCount > 0 ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                                <span className="text-sm font-medium">
+                                  {creator.averageRating.toFixed(1)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Link href={`/creator/${creator.id}/profile`}>
@@ -798,8 +841,8 @@ export default function CreatorDiscoveryPage() {
                 >
                   <p className="text-sm text-muted-foreground">
                     Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1}-
-                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredCreators.length)} de{' '}
-                    {filteredCreators.length} criadores
+                    {Math.min(currentPage * ITEMS_PER_PAGE, totalCreators)} de {totalCreators}{' '}
+                    criadores
                   </p>
                   <div className="flex items-center gap-1">
                     <Button
@@ -811,18 +854,24 @@ export default function CreatorDiscoveryPage() {
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <Button
-                        key={page}
-                        variant={page === currentPage ? 'default' : 'outline'}
-                        size="sm"
-                        className="w-8 h-8 p-0"
-                        onClick={() => handlePageChange(page)}
-                        data-testid={`button-page-${page}`}
-                      >
-                        {page}
-                      </Button>
-                    ))}
+                    {(() => {
+                      const pages: number[] = [];
+                      const start = Math.max(1, currentPage - 2);
+                      const end = Math.min(totalPages, currentPage + 2);
+                      for (let i = start; i <= end; i++) pages.push(i);
+                      return pages.map((page) => (
+                        <Button
+                          key={page}
+                          variant={page === currentPage ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-8 h-8 p-0"
+                          onClick={() => handlePageChange(page)}
+                          data-testid={`button-page-${page}`}
+                        >
+                          {page}
+                        </Button>
+                      ));
+                    })()}
                     <Button
                       variant="outline"
                       size="sm"

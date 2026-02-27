@@ -22,6 +22,7 @@ import {
   ChevronRight,
   UserPlus,
   Image,
+  Star,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InviteToCampaignModal } from '@/components/InviteToCampaignModal';
@@ -76,13 +77,40 @@ export default function CreatorsList() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const ITEMS_PER_PAGE = 12;
 
+  // Fetch discovery stats (campaigns, ratings)
+  const { data: discoveryStats = [] } = useQuery<
+    {
+      id: number;
+      campaignsCount: number;
+      averageRating: number;
+      reviewsCount: number;
+    }[]
+  >({
+    queryKey: ['/api/creators/discovery-stats'],
+    select: (data: any[]) =>
+      data.map((d: any) => ({
+        id: d.id,
+        campaignsCount: d.campaignsCount || 0,
+        averageRating: d.averageRating || 0,
+        reviewsCount: d.reviewsCount || 0,
+      })),
+  });
+
+  const statsMap = new Map(discoveryStats.map((s) => [s.id, s]));
+
   useEffect(() => {
     if (!creators || creators.length === 0) return;
     const usernames = creators.filter((c) => c.instagram).map((c) => c.instagram!);
     if (usernames.length === 0) return;
 
-    batchFetchProfilePics(usernames).then((picMap) => {
-      setBatchPicUrls(picMap);
+    batchFetchProfilePics(usernames).then((result) => {
+      setBatchPicUrls(result);
+      const found = result.size;
+      if (found < usernames.length * 0.5 && usernames.length > 5) {
+        setTimeout(() => {
+          batchFetchProfilePics(usernames).then(setBatchPicUrls);
+        }, 10000);
+      }
     });
   }, [creators]);
 
@@ -441,6 +469,36 @@ export default function CreatorsList() {
           )}
         </div>
       ),
+    },
+    {
+      key: 'campaignsCount',
+      label: 'Campanhas',
+      className: 'hidden lg:table-cell text-center',
+      render: (creator) => {
+        const stats = statsMap.get(creator.id);
+        return (
+          <div className="text-sm text-center">
+            <span className="font-medium">{stats?.campaignsCount ?? 0}</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'rating',
+      label: 'Nota',
+      className: 'hidden lg:table-cell text-center',
+      render: (creator) => {
+        const stats = statsMap.get(creator.id);
+        if (!stats || stats.reviewsCount === 0) {
+          return <span className="text-muted-foreground/50">—</span>;
+        }
+        return (
+          <div className="flex items-center justify-center gap-1">
+            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+            <span className="text-sm font-medium">{stats.averageRating.toFixed(1)}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'city',
