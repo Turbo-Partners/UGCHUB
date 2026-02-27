@@ -21,6 +21,7 @@ import {
   instagramProfiles,
   creatorReviews,
   deliverables,
+  favoriteCreators,
 } from '@shared/schema';
 import { z } from 'zod';
 import multer from 'multer';
@@ -38,7 +39,7 @@ import { objectStorageClient, registerObjectStorageRoutes } from './lib/object-s
 import { savePostThumbnail } from './lib/image-storage';
 import { sendGeminiMessage } from './lib/gemini';
 import { db } from './db';
-import { eq, and, lte, gte, desc, sql, inArray, ilike, or, isNotNull } from 'drizzle-orm';
+import { eq, and, lte, gte, desc, asc, sql, inArray, ilike, or, isNotNull } from 'drizzle-orm';
 import { registerModularRoutes } from './routes/index';
 import { tryBusinessDiscoveryForProfile } from './services/business-discovery';
 import {
@@ -340,7 +341,16 @@ Crawl-delay: 1
       const niche = ((req.query.niche as string) || '').trim();
       const minFollowers = parseInt(req.query.minFollowers as string) || 0;
       const maxFollowers = parseInt(req.query.maxFollowers as string) || 0;
+      const gender = ((req.query.gender as string) || '').trim();
+      const ageRange = ((req.query.ageRange as string) || '').trim();
+      const minAuthenticity = parseInt(req.query.minAuthenticity as string) || 0;
+      const minEngagement = parseFloat(req.query.minEngagement as string) || 0;
+      const state = ((req.query.state as string) || '').trim();
+      const sortBy = ((req.query.sortBy as string) || 'followers_desc').trim();
+      const favoritesOnly = req.query.favoritesOnly === 'true';
       const offset = (page - 1) * limit;
+
+      const activeCompanyId = (req.session as any)?.activeCompanyId;
 
       // Build WHERE conditions for SQL query
       const conditions = [
@@ -366,6 +376,49 @@ Crawl-delay: 1
         conditions.push(sql`${users.niche}::text[] && ARRAY[${niche}]::text[]`);
       }
 
+      if (gender && gender !== 'all') {
+        conditions.push(eq(users.gender, gender as any));
+      }
+
+      if (ageRange && ageRange !== 'all') {
+        const now = new Date();
+        if (ageRange.endsWith('+')) {
+          const minAge = parseInt(ageRange.replace('+', ''));
+          const maxBirthDate = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
+          conditions.push(isNotNull(users.dateOfBirth));
+          conditions.push(lte(users.dateOfBirth, maxBirthDate.toISOString().split('T')[0]));
+        } else {
+          const [minAge, maxAge] = ageRange.split('-').map(Number);
+          const maxBirthDate = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
+          const minBirthDate = new Date(
+            now.getFullYear() - maxAge - 1,
+            now.getMonth(),
+            now.getDate(),
+          );
+          conditions.push(isNotNull(users.dateOfBirth));
+          conditions.push(gte(users.dateOfBirth, minBirthDate.toISOString().split('T')[0]));
+          conditions.push(lte(users.dateOfBirth, maxBirthDate.toISOString().split('T')[0]));
+        }
+      }
+
+      if (state && state !== 'all') {
+        conditions.push(eq(users.state, state));
+      }
+
+      if (minAuthenticity > 0) {
+        conditions.push(gte(users.instagramAuthenticityScore, minAuthenticity));
+      }
+
+      if (minEngagement > 0) {
+        conditions.push(sql`CAST(${users.instagramEngagementRate} AS numeric) >= ${minEngagement}`);
+      }
+
+      if (favoritesOnly && activeCompanyId) {
+        conditions.push(
+          sql`${users.id} IN (SELECT ${favoriteCreators.creatorId} FROM ${favoriteCreators} WHERE ${favoriteCreators.companyId} = ${activeCompanyId})`,
+        );
+      }
+
       // Single efficient query with LEFT JOINs
       const baseQuery = db
         .select({
@@ -376,6 +429,14 @@ Crawl-delay: 1
           instagramFollowers: users.instagramFollowers,
           instagramFollowing: users.instagramFollowing,
           instagramPosts: users.instagramPosts,
+          instagramEngagementRate: users.instagramEngagementRate,
+          instagramAuthenticityScore: users.instagramAuthenticityScore,
+          instagramVerified: users.instagramVerified,
+          bio: users.bio,
+          gender: users.gender,
+          dateOfBirth: users.dateOfBirth,
+          tiktok: users.tiktok,
+          youtube: users.youtube,
           city: users.city,
           state: users.state,
           niche: users.niche,
@@ -394,11 +455,25 @@ Crawl-delay: 1
         .select({ total: sql<number>`count(*)::int` })
         .from(baseQuery.as('filtered_creators'));
 
+      // Dynamic sort order
+      const orderByClause = (() => {
+        switch (sortBy) {
+          case 'followers_asc':
+            return asc(users.instagramFollowers);
+          case 'engagement_desc':
+            return sql`CAST(${users.instagramEngagementRate} AS numeric) DESC NULLS LAST`;
+          case 'name':
+            return asc(users.name);
+          case 'authenticity_desc':
+            return sql`${users.instagramAuthenticityScore} DESC NULLS LAST`;
+          case 'followers_desc':
+          default:
+            return desc(users.instagramFollowers);
+        }
+      })();
+
       // Get paginated results
-      const creatorsRaw = await baseQuery
-        .orderBy(desc(users.instagramFollowers))
-        .limit(limit)
-        .offset(offset);
+      const creatorsRaw = await baseQuery.orderBy(orderByClause).limit(limit).offset(offset);
 
       // Filter out invalid profiles (validated with null followers = invalid)
       const validCreators = creatorsRaw.filter((c) => {
@@ -472,7 +547,15 @@ Crawl-delay: 1
           instagramFollowers: followers,
           instagramFollowing: creator.instagramFollowing,
           instagramPosts: creator.instagramPosts,
+          instagramEngagementRate: creator.instagramEngagementRate,
+          instagramAuthenticityScore: creator.instagramAuthenticityScore,
+          instagramVerified: creator.instagramVerified ?? false,
           instagramValidated: !!creator.igUsername,
+          bio: creator.bio,
+          gender: creator.gender,
+          dateOfBirth: creator.dateOfBirth,
+          tiktok: creator.tiktok,
+          youtube: creator.youtube,
           city: creator.city,
           state: creator.state,
           niche: creator.niche,
